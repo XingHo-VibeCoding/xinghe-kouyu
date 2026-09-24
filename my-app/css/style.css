@@ -11,7 +11,14 @@
   --panel: #ffffff;           /* 面板白 */
   --line: #e4e7e3;            /* 分隔线 */
   --text: #2b322e;            /* 主文字 */
-  --text-light: #8a938c;      /* 次要文字 */
+  --text-light: #667069;      /* 次要文字（白底对比度 ≈5.1:1、浅灰徽标底 ≈4.7:1，均 ≥4.5:1 无障碍线） */
+
+  /* —— 间距 token（视觉规则的可复用约束）：全站间距只允许 4 的倍数，写样式一律引用变量 ——
+     好处：想统一调大/调小全站留白，只改这里四个值；新间距先在节奏里找，找不到说明该重新想 */
+  --space-1: 4px;             /* 微间距：图标按钮内边距、紧凑间隙 */
+  --space-2: 8px;             /* 小间距：相关元素之间（图标↔文字、按钮组） */
+  --space-3: 12px;            /* 中间距：组件内边距（顶栏、条目） */
+  --space-4: 16px;            /* 大间距：面板/区块留白 */
 }
 
 body {
@@ -33,7 +40,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
@@ -62,7 +69,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   border: 1px solid var(--main-green);
 }
 .btn-primary.ghost:not(:disabled):active { background: #d9ebe2; }
-.import-actions { display: flex; align-items: center; gap: 8px; }
+.import-actions { display: flex; align-items: center; gap: var(--space-2); }
 
 .btn-small {
   background: #eef3f0;
@@ -87,7 +94,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  padding: var(--space-3);
 }
 .panel-head {
   display: flex;
@@ -135,10 +142,13 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   min-width: 0;
 }
 .list-count { font-size: 12px; color: var(--text-light); }
+/* 对齐：面板标题与列表条目内容共用同一条左线（17px = 列表框边框 1px + 条目左内边距 16px），
+   标题、🎵 图标、文件名从此落在一条隐形线上 */
+.list-panel .panel-head { padding-left: 17px; }
 /* 排序下拉：放在素材面板标题栏右侧，小尺寸不抢视线 */
 .sort-select {
   font-size: 12px;
@@ -151,7 +161,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
 }
 .sort-select:hover { background: #e3f0ea; }
 /* 让计数徽标和排序下拉一起靠右，标题仍留在左边 */
-.panel-head .list-count { margin-left: auto; margin-right: 8px; }
+.panel-head .list-count { margin-left: auto; margin-right: var(--space-2); }
 .material-list {
   list-style: none;
   overflow-y: auto;
@@ -177,7 +187,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 11px 14px;
+  padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--line);
   cursor: pointer; /* 第 4 步起点击即播放 */
 }
@@ -209,7 +219,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
 .m-move {
   background: none;
   font-size: 14px;
-  padding: 4px;
+  padding: var(--space-1);
   border-radius: 6px;
   opacity: 0.55;
 }
@@ -218,7 +228,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
 .m-unfile {
   background: none;
   font-size: 14px;
-  padding: 4px;
+  padding: var(--space-1);
   border-radius: 6px;
   opacity: 0.55;
 }
@@ -227,7 +237,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
 .m-rename {
   background: none;
   font-size: 14px;
-  padding: 4px;
+  padding: var(--space-1);
   border-radius: 6px;
   opacity: 0.55;
 }
@@ -238,7 +248,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 4px;
+  gap: var(--space-1);
 }
 .f-name {
   flex: 1;
@@ -388,9 +398,9 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
 }
-.seek-row { display: flex; align-items: center; gap: 8px; }
+.seek-row { display: flex; align-items: center; gap: var(--space-2); }
 .time-label {
   font-size: 11px;
   color: var(--text-light);
@@ -469,7 +479,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   width: 40px; height: 40px;
 }
 .ctl.big { width: 52px; height: 52px; font-size: 20px; background: var(--main-green); color: #fff; }
-.player-info { display: flex; gap: 8px; flex: 1; justify-content: flex-end; }
+.player-info { display: flex; gap: var(--space-2); flex: 1; justify-content: flex-end; }
 .chip {
   background: #eef3f0;
   color: var(--text);
@@ -486,7 +496,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 8px 16px 12px;
+  padding: var(--space-2) var(--space-4) var(--space-3);
   border-top: 1px dashed var(--line); /* 与上面的播放按钮轻轻分开 */
 }
 .ab-btn {
@@ -511,7 +521,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
 .ab-btn:active { transform: scale(0.97); } /* 按下去有一点回弹手感 */
 
 /* ===== 微调步进行：±1s 粗调 / ±0.1s 精调（对准句子首尾再打 A/B） ===== */
-.nudge-row { display: flex; gap: 8px; justify-content: center; }
+.nudge-row { display: flex; gap: var(--space-2); justify-content: center; }
 .nudge-btn {
   background: #eef3f0;
   border-radius: 8px;
@@ -541,11 +551,11 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   .folder-panel:not(.drawer-open) .folder-tree,
   .folder-panel:not(.drawer-open) .panel-tip { display: none; } /* 收起：抽屉内容整体隐藏 */
   .folder-panel.drawer-open { max-height: 42vh; }
-  .folder-panel.drawer-open .folder-tree { margin-top: 8px; }
+  .folder-panel.drawer-open .folder-tree { margin-top: var(--space-2); }
   .panel-resizer { display: none; } /* 手机上是上下布局，宽度拖拽没意义 */
   .slogan { display: none; } /* 小屏隐藏口号，给标题省地方 */
   /* —— 顶栏防换行：标题与两个导入按钮整体缩小一号，禁止按钮文字折行 —— */
-  .topbar { gap: 8px; padding: 10px 12px; }
+  .topbar { gap: var(--space-2); padding: 10px 12px; }
   .topbar-title { flex: 1; min-width: 0; } /* 标题区可被压缩，把空间让给按钮 */
   .logo { font-size: 24px; }
   .topbar h1 { font-size: 17px; white-space: nowrap; }
@@ -568,7 +578,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
     display: flex;
     flex: 1 1 100%;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     margin-left: 28px;                     /* 与第一行文件名左对齐 */
     min-width: 0;
   }
@@ -577,10 +587,10 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   /* 微调按钮手机端平分宽度、放大命中区（拇指好按） */
   .nudge-btn { flex: 1; min-width: 0; padding: 9px 4px; font-size: 14px; }
   /* 进度条尽量长、方便微调：时间标签更小更窄、进度条两侧留白收紧 */
-  .player-bar { padding: 8px 8px; }
-  .seek-row { gap: 4px; }
+  .player-bar { padding: var(--space-2); }
+  .seek-row { gap: var(--space-1); }
   .time-label { font-size: 9px; width: 36px; } /* 36px 仍放得下 0.1 秒位（如 10:05.3） */
   /* AB 三个按钮平分宽度，手机上也好按 */
-  .ab-row { gap: 8px; padding: 6px 10px 10px; }
+  .ab-row { gap: var(--space-2); padding: 6px 10px 10px; }
   .ab-btn { flex: 1; min-width: 0; padding: 9px 6px; font-size: 16px; }
 }

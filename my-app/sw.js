@@ -6,7 +6,7 @@
  *       并在浏览器里强刷一次，否则手机上可能一直用旧缓存。
  */
 
-const CACHE_VERSION = 'v28'; // 缓存版本号：改前端代码后记得 +1（v28：导入时检测视频编码，H.265 等不支持的当场警告）
+const CACHE_VERSION = 'v30'; // 缓存版本号：改前端代码后记得 +1（v30：间距节奏固化为 --space-1~4 设计 token）
 const CACHE_NAME = 'xinghe-kouyu-' + CACHE_VERSION;
 
 // 预缓存的骨架文件（第一次打开时全部下载存好）
