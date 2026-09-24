@@ -20,6 +20,9 @@ body {
   color: var(--text);
   /* 三段式布局：页面占满全屏，中部自动伸展，底部播放条固定在下面 */
   height: 100vh;
+  /* 手机浏览器的 100vh 含地址栏遮住的区域，底部播放条会被截掉；
+     100dvh 才是「真正看得见的高度」，老浏览器不认识就沿用上一行（渐进增强） */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden; /* 滚动发生在面板内部，页面本身不滚 */
@@ -103,6 +106,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
 }
 .panel-head h2 { font-size: 14px; }
 .panel-tip { margin-top: auto; font-size: 11px; color: var(--text-light); }
+/* 手机端专用的文件夹抽屉折叠条：桌面端一律隐藏（手机端的样式见文件底部适配块） */
+.folder-toggle { display: none; }
 
 /* 右边缘拖拽把手：按住可调面板宽度（长文件夹名看不全时用） */
 .panel-resizer {
@@ -198,6 +203,9 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   border-radius: 999px;
   white-space: nowrap;
 }
+/* 结构包装层：桌面端 display:contents 让它们「隐身」——子元素像没包装过一样直接参与
+   .material-item 的 flex 布局，桌面外观与包装前完全一致；手机端才激活为第二行容器 */
+.m-meta, .m-actions { display: contents; }
 .m-move {
   background: none;
   font-size: 14px;
@@ -502,12 +510,76 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
 }
 .ab-btn:active { transform: scale(0.97); } /* 按下去有一点回弹手感 */
 
+/* ===== 微调步进行：±1s 粗调 / ±0.1s 精调（对准句子首尾再打 A/B） ===== */
+.nudge-row { display: flex; gap: 8px; justify-content: center; }
+.nudge-btn {
+  background: #eef3f0;
+  border-radius: 8px;
+  font-size: 12px;
+  padding: 5px 14px;
+  color: var(--text);
+}
+.nudge-btn:hover { background: #e3f0ea; }
+.nudge-btn:active { transform: scale(0.97); }
+
 /* ===== 手机端适配（手机为主战场，宽度不足时左右栏改为上下） ===== */
 @media (max-width: 640px) {
   .workspace { flex-direction: column; }
-  .folder-panel { width: 100%; max-height: 180px; border-right: none; border-bottom: 1px solid var(--line); }
+  /* 关键修复：flex 子元素默认不许比内容矮（min-height:auto），
+     素材一多 list-panel 就撑破工作区、压到播放栏上，列表也无法滚动 */
+  .list-panel { min-height: 0; }
+  .folder-panel { width: 100%; border-right: none; border-bottom: 1px solid var(--line); max-height: none; }
+  /* —— 手机端方案 A：文件夹栏 = 可折叠抽屉 ——
+     收起时只剩一条按钮，把屏幕留给素材列表；展开时最多占屏高 42%，超出部分树内滚动 */
+  .folder-toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 9px 12px;
+    background: #eef3f0; color: var(--main-green);
+    font-size: 13px; border-radius: 8px;
+  }
+  .folder-panel:not(.drawer-open) .panel-head,
+  .folder-panel:not(.drawer-open) .folder-tree,
+  .folder-panel:not(.drawer-open) .panel-tip { display: none; } /* 收起：抽屉内容整体隐藏 */
+  .folder-panel.drawer-open { max-height: 42vh; }
+  .folder-panel.drawer-open .folder-tree { margin-top: 8px; }
   .panel-resizer { display: none; } /* 手机上是上下布局，宽度拖拽没意义 */
   .slogan { display: none; } /* 小屏隐藏口号，给标题省地方 */
+  /* —— 顶栏防换行：标题与两个导入按钮整体缩小一号，禁止按钮文字折行 —— */
+  .topbar { gap: 8px; padding: 10px 12px; }
+  .topbar-title { flex: 1; min-width: 0; } /* 标题区可被压缩，把空间让给按钮 */
+  .logo { font-size: 24px; }
+  .topbar h1 { font-size: 17px; white-space: nowrap; }
+  .import-actions { gap: 6px; }
+  .btn-primary { font-size: 13px; padding: 8px 10px; white-space: nowrap; } /* nowrap：按钮文字绝不换行 */
+  /* —— 底部栏：隐藏左侧「正在播放」文件名（素材列表已高亮当前项；
+     文件名过长时 flex 挤压会把控制按钮行挤变形，手机端干脆不显示）—— */
+  .now-playing { display: none; }
+  /* —— 播放按钮行：三栏网格（左空 / 中间按钮 / 右侧功能片），
+     ⏪▶⏩ 精确落在屏幕正中，不再因左侧文件名隐藏而靠边 —— */
+  .player-main { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .controls { grid-column: 2; }
+  .player-info { grid-column: 3; flex: none; justify-self: end; }
+  /* —— 素材条目两行布局：第一行「🎵 图标 + 文件名」，第二行「📁 位置 + 大小 + 按钮」。
+     上一版用像素估算换行被 emoji 实际宽度坑了（字形约 1.25 倍字号，第一行溢出几像素就把名字挤下
+     去）；现在改成 m-meta 容器整体换行（flex-basis: 100%），不再依赖任何像素估算 —— */
+  .material-item { flex-wrap: wrap; row-gap: 5px; }
+  .m-name { flex: 1; min-width: 0; }      /* 名字占满第一行剩余宽度，和图标同行 */
+  .m-meta {                                /* 第二行容器：📁 位置 + 大小 + 按钮 */
+    display: flex;
+    flex: 1 1 100%;
+    align-items: center;
+    gap: 8px;
+    margin-left: 28px;                     /* 与第一行文件名左对齐 */
+    min-width: 0;
+  }
+  .m-loc { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; } /* 文件夹名超长省略号 */
+  .m-actions { display: flex; flex: 1; justify-content: space-evenly; } /* ⤴️✏️📤 在剩余宽度里均匀分布 */
+  /* 微调按钮手机端平分宽度、放大命中区（拇指好按） */
+  .nudge-btn { flex: 1; min-width: 0; padding: 9px 4px; font-size: 14px; }
+  /* 进度条尽量长、方便微调：时间标签更小更窄、进度条两侧留白收紧 */
+  .player-bar { padding: 8px 8px; }
+  .seek-row { gap: 4px; }
+  .time-label { font-size: 9px; width: 36px; } /* 36px 仍放得下 0.1 秒位（如 10:05.3） */
   /* AB 三个按钮平分宽度，手机上也好按 */
   .ab-row { gap: 8px; padding: 6px 10px 10px; }
   .ab-btn { flex: 1; min-width: 0; padding: 9px 6px; font-size: 16px; }

@@ -49,6 +49,8 @@
 
     <!-- 左侧：应用内文件夹树 -->
     <aside class="folder-panel">
+      <!-- 手机端专用：文件夹抽屉折叠条（桌面端被 CSS 隐藏，样式见 style.css 手机端适配块） -->
+      <button id="folder-toggle" class="folder-toggle">▸ 展开文件夹</button>
       <div class="panel-head">
         <h2>文件夹</h2>
         <!-- 文件夹排序：同一层内的文件夹按名称或创建时间排，选择会记在浏览器里 -->
@@ -111,6 +113,13 @@
         <div id="ab-band" class="ab-band" hidden></div>
       </div>
       <span id="time-dur" class="time-label">0:00.0</span>
+    </div>
+    <!-- 微调步进行：±1s 粗调、±0.1s 精调——手机上拖进度条误差大，用小步长把播放头挪准后再打 A/B -->
+    <div class="nudge-row">
+      <button class="nudge-btn" data-step="-1" title="播放头后退 1 秒">−1s</button>
+      <button class="nudge-btn" data-step="-0.1" title="播放头后退 0.1 秒">−0.1s</button>
+      <button class="nudge-btn" data-step="0.1" title="播放头前进 0.1 秒">+0.1s</button>
+      <button class="nudge-btn" data-step="1" title="播放头前进 1 秒">+1s</button>
     </div>
     <div class="player-main">
       <div class="now-playing">未在播放</div>

@@ -265,14 +265,20 @@ async function renderMaterialList() {
     const unfileHtml = m.folderId !== 'root'
       ? '<button class="m-unfile" title="移出文件夹：回到顶层（素材不会删除）">⤴️</button>'
       : '';
+    // 结构：m-meta / m-actions 是两个包装层——桌面端用 display:contents「隐身」（布局与不包装时一致），
+    // 手机端媒体查询里才显示为第二行（📁位置 + 大小 + 均匀分布的按钮），一套 DOM 两端各排各的
     li.innerHTML =
       '<span class="m-icon">' + (m.type === 'video' ? '🎬' : '🎵') + '</span>' +
       '<span class="m-name">' + esc(m.name) + '</span>' +
-      locHtml +
-      '<span class="m-size">' + formatSize(m.size) + '</span>' +
-      unfileHtml +
-      '<button class="m-rename" title="重命名（只改应用里的名字，不动原文件）">✏️</button>' +
-      '<button class="m-move" title="移动到其他文件夹">📤</button>';
+      '<span class="m-meta">' +
+        locHtml +
+        '<span class="m-size">' + formatSize(m.size) + '</span>' +
+        '<span class="m-actions">' +
+          unfileHtml +
+          '<button class="m-rename" title="重命名（只改应用里的名字，不动原文件）">✏️</button>' +
+          '<button class="m-move" title="移动到其他文件夹">📤</button>' +
+        '</span>' +
+      '</span>';
     // 点条目主体 = 播放（第 4 步启用）
     li.addEventListener('click', () => playMaterial(m.id));
     li.querySelector('.m-move').addEventListener('click', (e) => {
@@ -397,7 +403,16 @@ async function playMaterial(id) {
   updatePlayingHighlight(); // 点谁谁立刻高亮（不用等列表重新渲染）
   mediaPlayer.src = currentUrl;
   mediaPlayer.playbackRate = RATES[rateIdx]; // 保持当前选定的速度
-  await mediaPlayer.play();
+  try {
+    await mediaPlayer.play();
+  } catch (err) {
+    // 手机端常见：视频编码不被支持（如 H.265/HEVC），play() 直接拒绝——
+    // 之前这里静默失败，后面代码全不执行，看起来就像「点了没反应」；现在明确弹提示
+    alert('视频无法播放（' + (err && err.name ? err.name : '未知错误') + '）。\n' +
+          '常见原因：视频编码不被当前浏览器支持（H.265/HEVC 编码的手机录像很典型）。\n' +
+          '解决办法：转成 H.264 编码的 MP4 再导入，或换 Chrome 等主流浏览器打开。');
+    return; // 播放失败：浮窗、进度条解锁等后续动作都不该继续
+  }
   // 视频：显示居中浮窗，🖼 按钮同时亮出；音频：浮窗隐藏只出声
   const isVideo = (m.type === 'video');
   videoFloat.hidden = !isVideo;
@@ -615,6 +630,116 @@ function isMediaFile(f) {
          /\.(mp3|m4a|wav|mp4|mov|webm)$/i.test(f.name);
 }
 
+// ===== 视频编码检测（2026-09-24 新增：H.265 视频在部分手机浏览器播不了，导入时就警告） =====
+// 背景：.mp4 只是「包装盒」，盒子里面的画面编码可能是 H.264（通用）或 H.265/HEVC（很多手机浏览器
+// 不支持，播放时报错误码 4）。老师发来的视频编码不可控，所以导入时主动检测。
+// 原理：mp4 / mov 是「盒子（box）」结构，每个盒子 = 4 字节长度 + 4 字节类型名；
+// 编码藏在 moov → trak（每条轨道一个）→ mdia → minf → stbl → stsd 里，用 4 个字符表示。
+// 全程只读文件的若干小切片（slice），不把整个视频读进内存。
+
+// 在 [start, end) 范围内找第一个指定类型的盒子，返回 { dataStart: 内容起点, end: 盒子结束位置 }
+async function findBoxRange(file, start, end, type) {
+  let pos = start;
+  while (pos + 8 <= end) {
+    const head = new DataView(await file.slice(pos, pos + 16).arrayBuffer());
+    let size = head.getUint32(0);
+    let headerLen = 8;
+    const t = String.fromCharCode(head.getUint8(4), head.getUint8(5), head.getUint8(6), head.getUint8(7));
+    if (size === 1) { size = Number(head.getBigUint64(8)); headerLen = 16; } // 大盒子：8 字节长长度
+    else if (size === 0) size = end - pos;                                   // 长度为 0：一直延伸到结尾
+    if (size < headerLen) break;                                             // 防坏数据死循环
+    if (t === type) return { dataStart: pos + headerLen, end: Math.min(pos + size, end) };
+    pos += size;
+  }
+  return null;
+}
+
+// 沿固定层级链逐层往下找（mdia → minf → stbl → stsd 每层只有一份），找到返回最内层盒子
+async function findBoxChain(file, start, end, path) {
+  let cur = { dataStart: start, end };
+  for (const name of path) {
+    const hit = await findBoxRange(file, cur.dataStart, cur.end, name);
+    if (!hit) return null;
+    cur = hit;
+  }
+  return cur;
+}
+
+// 读 stsd 的编码条目：前 8 字节是版本/标志 + 条目数，之后每条 = 4 字节长度 + 4 字节编码名。
+// 返回第一个认识的视频编码（音频轨的 mp4a 等不在表里，会返回 null，由调用方继续找下一轨）
+async function readStsdCodec(file, stsd) {
+  const CODECS = {
+    avc1: 'H.264', avc3: 'H.264',
+    hvc1: 'H.265 (HEVC)', hev1: 'H.265 (HEVC)',
+    dvh1: 'H.265 (杜比视界)', dvhe: 'H.265 (杜比视界)',
+    av01: 'AV1', vp09: 'VP9', mp4v: 'MPEG-4 第二部分（老编码）',
+  };
+  const head = new DataView(await file.slice(stsd.dataStart, stsd.dataStart + 8).arrayBuffer());
+  const count = head.getUint32(4);
+  let pos = stsd.dataStart + 8;
+  for (let i = 0; i < Math.min(count, 16); i++) {
+    if (pos + 8 > stsd.end) break;
+    const b = new DataView(await file.slice(pos, pos + 8).arrayBuffer());
+    const size = b.getUint32(0);
+    const name = String.fromCharCode(b.getUint8(4), b.getUint8(5), b.getUint8(6), b.getUint8(7));
+    if (CODECS[name]) return { fourcc: name, label: CODECS[name] };
+    if (size < 8) break;
+    pos += size;
+  }
+  return null;
+}
+
+// 主入口：解析 mp4/mov 的视频编码。解析不出（非 mp4 结构、坏文件等）返回 null，不拦导入
+async function detectVideoCodec(file) {
+  try {
+    const moov = await findBoxRange(file, 0, file.size, 'moov');
+    if (!moov) return null;
+    let pos = moov.dataStart;
+    while (pos + 8 <= moov.end) { // 逐个遍历 moov 里的 trak（视频轨、音频轨各一条），找到视频编码为止
+      const head = new DataView(await file.slice(pos, pos + 16).arrayBuffer());
+      let size = head.getUint32(0);
+      const t = String.fromCharCode(head.getUint8(4), head.getUint8(5), head.getUint8(6), head.getUint8(7));
+      if (size < 8) break;
+      if (t === 'trak') {
+        const stsd = await findBoxChain(file, pos + 8, pos + size, ['mdia', 'minf', 'stbl', 'stsd']);
+        if (stsd) {
+          const codec = await readStsdCodec(file, stsd);
+          if (codec) return codec;
+        }
+      }
+      pos += size;
+    }
+    return null;
+  } catch (e) {
+    return null; // 任何解析异常都当「没检测到」，导入流程不能被检测卡住
+  }
+}
+
+// 问浏览器自己支不支持某种编码（canPlayType 返回空串 = 明确不支持，这个方向是可靠的；
+// 反过来说「maybe/probably」但实际播不了的，由播放时的错误弹窗兜底）
+function browserSupportsVideoCodec(fourcc) {
+  const probe = {
+    avc1: 'avc1.42E01E', avc3: 'avc3.42E01E',
+    hvc1: 'hvc1.1.6.L93.B0', hev1: 'hev1.1.6.L93.B0',
+    dvh1: 'dvh1.05.07', dvhe: 'dvhe.05.07',
+    av01: 'av01.0.04M.08', vp09: 'vp09.00.10.08', mp4v: 'mp4v.20.8',
+  }[fourcc];
+  if (!probe) return true; // 不认识的编码不拦
+  return document.createElement('video').canPlayType('video/mp4; codecs="' + probe + '"') !== '';
+}
+
+// 导入前给视频做「编码体检」：不支持的编码弹确认框，用户可跳过该文件（返回 false = 用户选择不导入）
+async function warnIfUnsupportedVideo(file) {
+  const isMp4Like = file.type === 'video/mp4' || file.type === 'video/quicktime' ||
+                    /\.(mp4|mov|m4v)$/i.test(file.name);
+  if (!isMp4Like) return true; // 其他容器不解析，交给播放时的错误提示兜底
+  const codec = await detectVideoCodec(file);
+  if (!codec || browserSupportsVideoCodec(codec.fourcc)) return true;
+  return confirm('「' + file.name + '」是 ' + codec.label + ' 编码的视频，当前浏览器不支持播放。\n' +
+    '这类视频在部分手机浏览器上无法播放（播放时报错误码 4），导入也只能占空间。\n' +
+    '建议：用剪映 / 格式工厂等工具转成 H.264 编码的 MP4 再导入。\n\n仍要导入这个文件吗？');
+}
+
 // 批量导入期间的按钮状态：禁用两个导入按钮并在主按钮上显示进度
 // （几十个文件时才不会看起来像卡死）；返回的对象里 end() 负责恢复原状
 function beginImportUI() {
@@ -647,9 +772,11 @@ async function importFiles(fileList, sourceLabel) {
 
   const targetId = currentFolderId === 'all' ? 'root' : currentFolderId;
   const ui = beginImportUI();
+  let declined = 0; // 用户在编码警告里选择「不导入」的视频数
   try {
     for (let i = 0; i < ok.length; i++) {
       ui.progress(i + 1, ok.length);
+      if (!(await warnIfUnsupportedVideo(ok[i]))) { declined++; continue; } // 编码不支持且用户选择跳过
       await DB.saveMaterial(ok[i], targetId); // 逐个复制进 IndexedDB（统一复制存储）
     }
   } finally {
@@ -665,8 +792,9 @@ async function importFiles(fileList, sourceLabel) {
     const hit = folders.find(f => f.id === targetId);
     if (hit) where = '「' + hit.name + '」';
   }
-  alert('从' + (sourceLabel || '文件') + '导入 ' + ok.length + ' 个素材，已归入' + where +
-        (skipped > 0 ? '（另有 ' + skipped + ' 个非音视频文件已忽略）' : ''));
+  alert('从' + (sourceLabel || '文件') + '导入 ' + (ok.length - declined) + ' 个素材，已归入' + where +
+        (skipped > 0 ? '\n（另有 ' + skipped + ' 个非音视频文件已忽略）' : '') +
+        (declined > 0 ? '\n（' + declined + ' 个视频因编码不受支持未导入）' : ''));
 }
 
 // 处理「导入整个文件夹」：按原目录结构在应用里建出同样的文件夹树，文件各归各位。
@@ -688,7 +816,7 @@ async function importFolder(fileList) {
   const fileKeys = new Set((await DB.getAllMaterials('all')).map(m => m.folderId + '|' + m.name + '|' + m.size));
 
   const ui = beginImportUI();
-  let imported = 0, dup = 0, created = 0;
+  let imported = 0, dup = 0, created = 0, declined = 0; // declined：编码警告里用户选择跳过的视频数
   const expandIds = new Set(); // 新建文件夹的上一级：导入后自动展开，让结构一眼可见
 
   try {
@@ -715,6 +843,7 @@ async function importFolder(fileList) {
 
       const dupKey = parentId + '|' + file.name + '|' + file.size;
       if (fileKeys.has(dupKey)) { dup++; continue; } // 同一个文件夹里已有同样的文件 → 跳过
+      if (!(await warnIfUnsupportedVideo(file))) { declined++; continue; } // 编码不支持且用户选择跳过
       await DB.saveMaterial(file, parentId);
       fileKeys.add(dupKey);
       imported++;
@@ -729,6 +858,7 @@ async function importFolder(fileList) {
   let msg = '已从文件夹导入 ' + imported + ' 个素材';
   if (created > 0) msg += '，按原目录结构新建了 ' + created + ' 个文件夹';
   if (dup > 0) msg += '\n（跳过 ' + dup + ' 个已存在的相同文件）';
+  if (declined > 0) msg += '\n（' + declined + ' 个视频因编码不受支持未导入）';
   if (skipped > 0) msg += '\n（另有 ' + skipped + ' 个非音视频文件已忽略）';
   alert(msg);
 }
@@ -770,6 +900,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (isFinite(mediaPlayer.duration)) {
       mediaPlayer.currentTime = Math.min(mediaPlayer.duration, mediaPlayer.currentTime + 5);
     }
+  });
+  // 微调步进按钮：±1s 粗调、±0.1s 精调——手机上拖进度条误差大，先小步把播放头挪准再打 A/B
+  // （A/B 本来就取当前位置且可反复重打，所以微调完直接按即可，无需额外状态）
+  document.querySelectorAll('.nudge-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      if (!currentId) return; // 还没选素材，播放头无处可调
+      const step = parseFloat(b.dataset.step);
+      let t = mediaPlayer.currentTime + step;
+      if (isFinite(mediaPlayer.duration)) t = Math.min(mediaPlayer.duration, t); // 不越过结尾
+      mediaPlayer.currentTime = Math.max(0, t);                                   // 不越过开头
+    });
+  });
+  // 播放中途解码失败的兜底（如编码不支持）：把 <video> 的错误码翻译成人话，不再黑盒
+  mediaPlayer.addEventListener('error', () => {
+    const code = mediaPlayer.error ? mediaPlayer.error.code : 0;
+    const why = { 1: '播放被中断', 2: '加载出错', 3: '解码失败', 4: '格式或编码不支持' }[code] || '未知错误';
+    alert('播放出错：' + why + '（错误码 ' + code + '）。\n' +
+          '若是视频，常见于 H.265/HEVC 编码，建议转成 H.264 编码的 MP4 再导入。');
   });
   btnSpeed.addEventListener('click', () => {
     rateIdx = (rateIdx + 1) % RATES.length;
@@ -1044,6 +1192,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     localStorage.removeItem('folderPanelWidth');
   });
 
+  // ===== 手机端：文件夹栏折叠抽屉（方案 A；桌面端此按钮被 CSS 隐藏，不受影响） =====
+  const folderToggle = document.getElementById('folder-toggle');
+  // 记住上次的展开/收起状态；第一次用默认收起，把屏幕留给素材列表
+  let folderDrawerOpen = localStorage.getItem('folderDrawerOpen') === '1';
+  const applyFolderDrawer = () => {
+    folderPanel.classList.toggle('drawer-open', folderDrawerOpen);
+    folderToggle.textContent = folderDrawerOpen ? '▾ 收起文件夹' : '▸ 展开文件夹';
+  };
+  folderToggle.addEventListener('click', () => {
+    folderDrawerOpen = !folderDrawerOpen;
+    localStorage.setItem('folderDrawerOpen', folderDrawerOpen ? '1' : '0');
+    applyFolderDrawer();
+  });
+  applyFolderDrawer();
+
   // ===== PWA：注册 Service Worker（第 7 步） =====
   // 只在 http(s) 环境注册（file:// 双击打开时跳过）；注册成功后应用可安装、离线可开
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
@@ -1064,11 +1227,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 导入整个文件夹（PRD A1）：一次把文件夹里的音视频批量收进来（含子文件夹里的）
   const btnImportFolder = document.getElementById('btn-import-folder');
   const folderInput = document.getElementById('folder-input');
-  // 部分浏览器不支持「选择文件夹」（例如 iPhone 的 Safari），先探测一下再给提示
-  const canPickFolder = 'webkitdirectory' in document.createElement('input');
+  // 判断当前浏览器是否真的能「选择文件夹」（webkitdirectory）。
+  // 为什么不能只查属性：老版手机浏览器属性存在，点开却只能选文件。
+  // 为什么安卓端用白名单：国产自带浏览器（小米/华为/OPPO/vivo/UC/微信等）即使内核够新，
+  //   选择器也多为自家定制、选不了文件夹（小米浏览器 20.6 实测如此），只能一律按不支持处理。
+  // 支持底线（查自 MDN / caniuse，2026-09）：安卓 Chrome 132+ / 安卓 Firefox 142+ /
+  //   iPhone Safari 18.4+ / Samsung Internet 30+；桌面端 Chrome 30+ / Edge 14+ / Firefox 50+ / Safari 11.1+。
+  const folderPickSupported = () => {
+    const ua = navigator.userAgent;
+    const ver = (re) => { const r = ua.match(re); return r ? parseFloat(r[1]) : 0; };
+    const onMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+    if (/iPhone|iPad|iPod/i.test(ua)) return ver(/Version\/([\d.]+)/) >= 18.4;   // iPhone：自带 Safari 及套壳（共用系统 WebKit）
+    if (!onMobile) return ver(/Chrome\/([\d.]+)/) >= 30 || ver(/Version\/([\d.]+)/) >= 11.1; // 桌面：Chrome/Edge/Opera 或 Safari
+    if (/SamsungBrowser/i.test(ua)) return ver(/SamsungBrowser\/([\d.]+)/) >= 30;
+    if (/FxiOS/i.test(ua)) return ver(/FxiOS\/([\d.]+)/) >= 18.4;                // iPhone 上的 Firefox（防御性判断，上面已拦截 iPhone）
+    if (/Firefox/i.test(ua)) return ver(/Firefox\/([\d.]+)/) >= 142;             // 安卓 Firefox
+    if (/Edg\//i.test(ua)) return ver(/Edg\/([\d.]+)/) >= 132;                   // 安卓 Edge（内核跟 Chromium 走）
+    // 国产自带浏览器 / 套壳：即使内核是 Chrome 也选不了文件夹，视为不支持
+    if (/MiuiBrowser|HuaweiBrowser|HeyTapBrowser|VivoBrowser|UCBrowser|QQBrowser|Baidu|MicroMessenger|baiduboxapp|HeyTap/i.test(ua)) return false;
+    return ver(/Chrome\/([\d.]+)/) >= 132;                                       // 安卓纯 Chrome 等国际浏览器
+  };
   btnImportFolder.addEventListener('click', () => {
-    if (!canPickFolder) {
-      alert('当前浏览器不支持「选择文件夹」（iPhone 的 Safari 就不支持）。\n可以改用「＋ 导入素材」一次多选文件，或在电脑上用 Chrome / Edge 导入。');
+    if (!folderPickSupported()) {
+      alert('当前浏览器不支持「选择整个文件夹」（很多手机自带浏览器都不支持）。\n两个替代办法：\n① 用「＋ 导入素材」一次多选文件，效果一样，只是不会自动建文件夹；\n② 换新版 Chrome 或 Edge 打开本页（安卓 Chrome 需要 132 以上版本）。');
       return;
     }
     folderInput.click();
