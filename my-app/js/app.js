@@ -736,7 +736,7 @@ async function importFolder(fileList) {
 // ===== 初始化 =====
 
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('星禾口语 v2.7：文件夹树排序（按名称 / 按创建时间）已启用');
+  console.log('星禾口语 v2.8：视频浮窗可锁定宽高比缩放（右下角手柄）');
 
   // 首次打开：渲染树和列表
   await renderAll();
@@ -920,6 +920,95 @@ document.addEventListener('DOMContentLoaded', async () => {
     videoFloat.style.top = '';
     videoFloat.style.transform = '';
     localStorage.removeItem('videoFloatPos');
+  });
+
+  // ===== 视频浮窗缩放（QQ 视频窗同款：右下角手柄，宽高比锁定不变形） =====
+  const videoResize = document.getElementById('video-resize');
+  const VF_MIN_W = 200;    // 最小宽度：再小画面就看不清了
+  const VF_MAX_H = 0.85;   // 高度上限 = 窗口高度的 85%（给抓手和底部播放条留位置）
+
+  // 当前视频的宽高比（元数据还没加载出来时按 16:9 估，避免算出 0）
+  function vfRatio() {
+    const w = mediaPlayer.videoWidth, h = mediaPlayer.videoHeight;
+    return (w > 0 && h > 0) ? (w / h) : (16 / 9);
+  }
+
+  // 把宽度夹进安全范围：不小于最小宽度、高度不超出屏幕、宽度不超出屏幕
+  function vfClamp(px) {
+    const r = videoFloat.getBoundingClientRect();
+    // 从窗口顶部到屏幕底部还剩多少高度；至少给 35% 屏高，免得贴着屏幕底边时完全放不大
+    const availH = Math.max(window.innerHeight * 0.35, window.innerHeight - Math.max(r.top, 0) - 12);
+    const maxH = Math.min(window.innerHeight * VF_MAX_H, availH);
+    const maxW = Math.min(window.innerWidth * 0.96, maxH * vfRatio());
+    return Math.round(Math.max(VF_MIN_W, Math.min(px, maxW)));
+  }
+
+  // 应用宽度：只改宽度，高度跟着视频比例自动走——这就是「锁定横纵比」
+  // 传 null = 回到 CSS 默认大小 min(640px, 92vw)
+  function applyVideoSize(px) {
+    videoFloat.style.width = (px == null) ? '' : vfClamp(px) + 'px';
+  }
+
+  // 打开页面时恢复上次调好的大小
+  const savedVfW = parseInt(localStorage.getItem('videoFloatSize'), 10);
+  if (savedVfW > 0) applyVideoSize(savedVfW);
+  // 换视频后比例可能不同（横屏换竖屏），重新夹一次保证不出屏
+  mediaPlayer.addEventListener('loadedmetadata', () => {
+    const cur = parseInt(videoFloat.style.width, 10);
+    if (cur > 0) applyVideoSize(cur);
+  });
+  // 浏览器窗口变大变小（含手机横竖屏切换）也跟着重新夹一次
+  window.addEventListener('resize', () => {
+    const cur = parseInt(videoFloat.style.width, 10);
+    if (cur > 0) applyVideoSize(cur);
+  });
+
+  let vfResizing = false, vfStartW = 0, vfStartH = 0, vfAnchorX = 0, vfAnchorY = 0;
+  videoResize.addEventListener('pointerdown', (e) => {
+    if (videoFloat.hidden) return; // 音频素材没有画面，手柄也不该在
+    e.preventDefault();
+    e.stopPropagation();           // 别把按下事件传给下面的视频
+    vfResizing = true;
+    videoResize.setPointerCapture(e.pointerId); // 指针锁定，拖出屏幕也不丢
+    const r = videoFloat.getBoundingClientRect();
+    // 缩放期间改用像素定位：否则 CSS 的居中 transform 会让窗口边缩边漂
+    videoFloat.style.left = r.left + 'px';
+    videoFloat.style.top = r.top + 'px';
+    videoFloat.style.transform = 'none';
+    vfAnchorX = r.left;  // 左上角固定，右下角跟着手走
+    vfAnchorY = r.top;
+    vfStartW = r.width;
+    vfStartH = r.height;
+  });
+  videoResize.addEventListener('pointermove', (e) => {
+    if (!vfResizing) return;
+    // 看「往右拖了多少」和「往下拖了多少」，取变化更大的那个定缩放比例——横着拖竖着拖都跟手
+    const scale = Math.max((e.clientX - vfAnchorX) / vfStartW, (e.clientY - vfAnchorY) / vfStartH);
+    applyVideoSize(vfStartW * scale);
+  });
+  videoResize.addEventListener('pointerup', () => {
+    if (!vfResizing) return;
+    vfResizing = false;
+    const w = parseInt(videoFloat.style.width, 10);
+    if (w > 0) localStorage.setItem('videoFloatSize', String(w)); // 记住大小，下次还是这个尺寸
+    // 放大后如果右边/下边顶出屏幕，把窗口往回挪到看得见的位置
+    // （只对「已拖到自定义位置」的窗口做——还在居中状态的本来就不会超屏）
+    if (videoFloat.style.left) {
+      const r = videoFloat.getBoundingClientRect();
+      let x = r.left, y = r.top;
+      if (r.right > window.innerWidth)  x = Math.max(0, window.innerWidth - r.width - 8);
+      if (r.bottom > window.innerHeight) y = Math.max(0, window.innerHeight - r.height - 8);
+      if (Math.round(x) !== Math.round(r.left) || Math.round(y) !== Math.round(r.top)) {
+        videoFloat.style.left = x + 'px';
+        videoFloat.style.top = y + 'px';
+        localStorage.setItem('videoFloatPos', JSON.stringify({ x: Math.round(x), y: Math.round(y) }));
+      }
+    }
+  });
+  // 双击手柄 = 恢复默认大小
+  videoResize.addEventListener('dblclick', () => {
+    videoFloat.style.width = '';
+    localStorage.removeItem('videoFloatSize');
   });
 
   // ===== 左栏宽度拖拽（长文件夹名看不全时用） =====

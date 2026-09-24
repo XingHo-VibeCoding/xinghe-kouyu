@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<!-- 星禾口语 · 主视图（Day 8）
+     板块① 出了页面骨架（结构 + 样式）；板块③ 把写死的内容换成 mock 假数据渲染，
+     并补齐「加载中 / 空 / 出错 / 有数据」四种状态。
+     今日边界：不接真实数据（真实素材留到第 3 周）、不做登录。 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <!-- 手机端按设备宽度渲染：主视图同样要手机优先 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>星禾口语 · 我的素材</title>
+  <link rel="stylesheet" href="css/main-view.css">
+</head>
+<body>
+
+  <!-- ===== 顶栏：品牌 + 主操作 ===== -->
+  <header class="mv-topbar">
+    <div class="mv-brand">
+      <span class="mv-logo">🌾</span>
+      <div>
+        <h1>我的素材</h1>
+        <p class="mv-sub">星禾口语 · 主视图</p>
+      </div>
+    </div>
+    <!-- 导入按钮：本板块仍只是占位，不接功能 -->
+    <button class="mv-btn">＋ 导入素材</button>
+  </header>
+
+  <main class="mv-main">
+
+    <!-- ========== 状态 ①：加载中（骨架屏）==========
+         数据还没到，先用灰块把「将来会长出什么」占住位置。
+         比一个转圈更好：页面不会在数据到达时突然跳一下。 -->
+    <div id="mv-skeleton" class="mv-skeleton" hidden>
+      <section class="mv-stats">
+        <div class="sk-card"></div>
+        <div class="sk-card"></div>
+        <div class="sk-card"></div>
+        <div class="sk-card"></div>
+      </section>
+
+      <section class="mv-list-panel">
+        <div class="mv-list-head">
+          <h2>素材列表</h2>
+          <span class="sk-line sk-count"></span>
+        </div>
+        <ul class="mv-list">
+          <li class="mv-item sk-row">
+            <span class="sk-dot"></span>
+            <div class="mv-info"><span class="sk-line sk-title"></span><span class="sk-line sk-meta"></span></div>
+          </li>
+          <li class="mv-item sk-row">
+            <span class="sk-dot"></span>
+            <div class="mv-info"><span class="sk-line sk-title"></span><span class="sk-line sk-meta"></span></div>
+          </li>
+          <li class="mv-item sk-row">
+            <span class="sk-dot"></span>
+            <div class="mv-info"><span class="sk-line sk-title"></span><span class="sk-line sk-meta"></span></div>
+          </li>
+          <li class="mv-item sk-row">
+            <span class="sk-dot"></span>
+            <div class="mv-info"><span class="sk-line sk-title"></span><span class="sk-line sk-meta"></span></div>
+          </li>
+        </ul>
+      </section>
+    </div>
+
+    <!-- ========== 状态 ②有数据 / ③空 ==========
+         这两态共用同一块内容壳，区别只在：统计区显不显示、列表区显示列表还是空状态。 -->
+    <div id="mv-content" class="mv-content" hidden>
+
+      <!-- 统计卡片区：内容由 JS 从假数据算出来 -->
+      <section class="mv-stats" id="mv-stats"></section>
+
+      <!-- 素材列表区 -->
+      <section class="mv-list-panel" id="mv-list-panel">
+        <div class="mv-list-head">
+          <h2>素材列表</h2>
+          <span class="mv-count" id="mv-count"></span>
+        </div>
+
+        <!-- 状态 ③：空状态。注意它不是「错误」——没有素材是完全正常的情况 -->
+        <div id="mv-empty" class="mv-empty" hidden>
+          <div class="mv-empty-icon">🌱</div>
+          <h3>还没有素材</h3>
+          <p>把老师发的音视频导入进来，这里就会长出你的素材列表。</p>
+          <button class="mv-btn" id="mv-empty-import">＋ 导入素材</button>
+        </div>
+
+        <!-- 有数据时由 JS 往这里塞列表条目 -->
+        <ul class="mv-list" id="mv-list"></ul>
+      </section>
+    </div>
+
+    <!-- ========== 状态 ④：出错 ==========
+         出错的三个必备要素：说清发生了什么、给一个出口（重试）、别让用户干等。 -->
+    <div id="mv-error" class="mv-state-box mv-error" hidden>
+      <div class="mv-empty-icon">⚠️</div>
+      <h3>加载失败</h3>
+      <p id="mv-error-msg"></p>
+      <button class="mv-btn" id="mv-retry">重试</button>
+    </div>
+
+  </main>
+
+  <!-- ===== 状态预览条（开发用的临时工具，不是产品功能）=====
+       点四个按钮就能挨个查看四种状态。上线前应该删掉这条。 -->
+  <div class="mv-state-bar" id="mv-state-bar">
+    <span class="mv-bar-label">状态预览</span>
+    <button data-state="loading">加载中</button>
+    <button data-state="empty">空</button>
+    <button data-state="error">出错</button>
+    <button data-state="data">有数据</button>
+    <button id="mv-bar-toggle" title="收起状态预览">−</button>
+  </div>
+
+  <!-- 加载顺序有讲究：先有数据源（mock-data.js）和零件（components.js），再有页面逻辑（main-view.js） -->
+  <script src="js/components.js"></script>
+  <script src="js/mock-data.js"></script>
+  <script src="js/main-view.js"></script>
+</body>
+</html>

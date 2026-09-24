@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<!-- 星禾口语 · 组件预览页（Day 8 余力加练）
+     这是给开发者（也就是你）看的临时页面，不是产品的一部分：
+     同一个组件塞不同的参数，就能一眼看出它在各种极端情况下长什么样——
+     超长文件名、0%、100%、视频、空名字。
+     专业前端项目里这类页面通常由 Storybook 之类的工具生成，我们先手写一个迷你版。 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>组件预览 · 星禾口语</title>
+  <link rel="stylesheet" href="css/main-view.css">
+  <style>
+    /* 只属于这个预览页的排版，不污染任何正式页面 */
+    .demo-wrap { max-width: 900px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 22px; }
+    .demo-tip {
+      background: #eef4f0;
+      border-left: 3px solid var(--main-green);
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #4a544d;
+      line-height: 1.7;
+    }
+    .demo-block { display: flex; flex-direction: column; gap: 10px; }
+    .demo-block h3 { font-size: 14px; font-weight: 500; }
+    .demo-note { font-size: 12px; color: var(--text-light); line-height: 1.7; }
+    .demo-code {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      background: #2b322e;
+      color: #dfe6e1;
+      border-radius: 8px;
+      padding: 10px 12px;
+      overflow-x: auto;      /* 代码太长就横向滚动，不撑破页面 */
+      white-space: pre;
+      line-height: 1.6;
+    }
+    /* 组件外面套一圈虚线，方便看清「组件的边界在哪」 */
+    .demo-outline { outline: 1px dashed #c9d4cd; outline-offset: 3px; border-radius: var(--radius); }
+  </style>
+</head>
+<body>
+
+  <header class="mv-topbar">
+    <div class="mv-brand">
+      <span class="mv-logo">🧩</span>
+      <div>
+        <h1>组件预览</h1>
+        <p class="mv-sub">同一个组件 · 不同参数 · 一眼看全</p>
+      </div>
+    </div>
+    <a class="mv-btn" href="main-view.html" style="text-decoration:none">← 回主视图</a>
+  </header>
+
+  <div class="demo-wrap">
+
+    <div class="demo-tip">
+      这一页的内容<strong>全部由两个函数生成</strong>：<code>Components.statCard()</code> 和
+      <code>Components.materialItem()</code>。它们住在 <code>js/components.js</code>。
+      组件里的样式或结构改一次，主视图和这一页会同时变——这就是「可复用」的意思。
+    </div>
+
+    <!-- ========== 组件一：统计卡片 ========== -->
+    <section class="demo-block">
+      <h3>组件一：统计卡片 StatCard</h3>
+
+      <section class="mv-stats demo-outline">
+        <!-- 全部由下面的 JS 生成 -->
+      </section>
+
+      <p class="demo-note">
+        参数只有三个：<code>value</code>（主数字）、<code>unit</code>（单位，可省）、<code>label</code>（说明）。
+        第一张故意给了很长的说明文字和 5 位数字，用来测「数字撑长会不会挤坏卡片」。
+      </p>
+
+      <div class="demo-code">cards.map(Components.statCard)
+
+// 传入的每个对象就是一张卡片：
+{ value: '24',   unit: '',     label: '素材总数' }
+{ value: '3.2',  unit: '小时', label: '已听时长' }
+{ value: '12.8', unit: '小时', label: '累计跟读练习时长（含复读次数）' }</div>
+    </section>
+
+    <!-- ========== 组件二：素材列表条目 ========== -->
+    <section class="demo-block">
+      <h3>组件二：素材列表条目 MaterialItem</h3>
+
+      <section class="mv-list-panel demo-outline">
+        <div class="mv-list-head">
+          <h2>素材列表</h2>
+          <span class="mv-count">6 种情况</span>
+        </div>
+        <ul class="mv-list">
+          <!-- 全部由下面的 JS 生成 -->
+        </ul>
+      </section>
+
+      <p class="demo-note">
+        六条分别是：<strong>还没听（0%）</strong>、<strong>听了一半</strong>、<strong>听完了（100%）</strong>、
+        <strong>视频（🎬）</strong>、<strong>超长文件名（省略号）</strong>、
+        <strong>缺字段（防御性：少传一个字段也不该白屏）</strong>。
+      </p>
+
+      <div class="demo-code">materials.map(Components.materialItem)
+
+// 传入的每个对象就是一条素材：
+{ name: '第03课-连读与弱读.mp3', type: 'audio', folder: '第三课',
+  duration: 754, listened: 588 }</div>
+    </section>
+
+  </div>
+
+  <script src="js/components.js"></script>
+  <script>
+    /* 这个预览页唯二的两段 JS：把参数喂给组件，塞进上面留好的容器里 */
+
+    // ---- 组件一：几张刻意挑过参数的卡片 ----
+    const demoCards = [
+      { value: '24', unit: '', label: '素材总数' },
+      { value: '3.2', unit: '小时', label: '已听时长' },
+      { value: '12840', unit: '', label: '累计跟读练习遍数（这块说明文字故意很长，用来测换行）' },
+      { value: '0', unit: '', label: '今日待练' },
+    ];
+    document.querySelector('.mv-stats').innerHTML = demoCards.map(Components.statCard).join('');
+
+    // ---- 组件二：六种典型情况 ----
+    const demoItems = [
+      { name: '晨读打卡-第7天.mp3', type: 'audio', folder: '顶层', duration: 245, listened: 0 },
+      { name: '第02课-句子重音.mp3', type: 'audio', folder: '第三课', duration: 560, listened: 252 },
+      { name: '第01课-音标入门.mp3', type: 'audio', folder: '第一课', duration: 900, listened: 900 },
+      { name: '口语示范-日常对话.mp4', type: 'video', folder: '示范课', duration: 1510, listened: 181 },
+      { name: '第05课-雅思口语Part2话题串讲-如何描述一个你敬佩的人-完整版录音.mp3', type: 'audio', folder: '拓展课', duration: 2412, listened: 723 },
+      // 最后这条故意缺 folder / duration：组件里用了默认值兜底，不该出现 undefined 或白屏
+      { name: '字段缺失的测试文件.mp3', type: 'audio' },
+    ];
+    document.querySelector('.mv-list').innerHTML = demoItems.map(Components.materialItem).join('');
+  </script>
+</body>
+</html>

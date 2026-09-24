@@ -6,7 +6,7 @@
  *       并在浏览器里强刷一次，否则手机上可能一直用旧缓存。
  */
 
-const CACHE_VERSION = 'v15'; // 缓存版本号：改前端代码后记得 +1（v15：文件夹树排序）
+const CACHE_VERSION = 'v18'; // 缓存版本号：改前端代码后记得 +1（v18：抽出可复用组件 components.js）
 const CACHE_NAME = 'xinghe-kouyu-' + CACHE_VERSION;
 
 // 预缓存的骨架文件（第一次打开时全部下载存好）
@@ -19,6 +19,13 @@ const CORE_FILES = [
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  // Day 8 新增：「我的素材」主视图（Day 8 板块①③）+ 可复用组件（余力加练）
+  './main-view.html',
+  './css/main-view.css',
+  './js/mock-data.js',
+  './js/components.js',
+  './js/main-view.js',
+  './components-demo.html',
 ];
 
 // 安装阶段：把骨架文件全部存进缓存

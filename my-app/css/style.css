@@ -315,7 +315,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
 #media-player {
   display: block;
   width: 100%;
-  max-height: 62vh; /* 给顶部拖拽抓手腾一点高度 */
+  /* 高度不再用 max-height 限制：改由 JS 按「视频比例 + 窗口大小」算好宽度，
+     高度自然跟着比例走——这样永远不会被压扁，用户放大缩小时画面不变形 */
   border-radius: 0 0 12px 12px; /* 上边被抓手盖住，只圆下角 */
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
   background: #000;
@@ -349,6 +350,22 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   font-size: 13px;
 }
 #video-close:hover { background: rgba(0, 0, 0, 0.75); }
+/* 右下角缩放手柄：按住拖动调大小（宽高比锁定）；三条斜线是「这里能拉」的通用视觉暗号 */
+#video-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 24px;
+  height: 24px;
+  cursor: nwse-resize;   /* 斜向缩放光标 */
+  border-radius: 0 0 12px 0; /* 跟容器右下角圆角对齐 */
+  background:
+    linear-gradient(135deg, transparent 46%, rgba(255, 255, 255, 0.75) 46%, rgba(255, 255, 255, 0.75) 54%, transparent 54%),
+    linear-gradient(135deg, transparent 66%, rgba(255, 255, 255, 0.45) 66%, rgba(255, 255, 255, 0.45) 74%, transparent 74%),
+    linear-gradient(135deg, transparent 84%, rgba(255, 255, 255, 0.28) 84%, rgba(255, 255, 255, 0.28) 92%, transparent 92%);
+  touch-action: none;    /* 手机上拖动不触发页面滚动 */
+}
+#video-resize:hover { filter: brightness(1.6); }
 
 /* ===== 底部播放条（两行：进度条 + 控制按钮） ===== */
 .player-bar {

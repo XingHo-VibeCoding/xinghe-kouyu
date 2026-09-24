@@ -1,0 +1,274 @@
+/* 星禾口语 · 主视图样式（Day 8 板块①） */
+/* 与 index.html 共用同一套配色（浅色、简洁、手机优先），但独立成文件：
+   这个页面的布局是「统计卡片 + 素材列表」，和 index.html 的「左树 + 右列表」不是一回事。 */
+
+/* ===== 基础重置与变量（配色沿用全站） ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --main-green: #3a8f6f;      /* 主题绿：呼应「星禾」的禾苗意象 */
+  --main-green-dark: #2e7459; /* 按下时的深绿 */
+  --bg: #f6f7f5;              /* 页面底色：暖灰白 */
+  --panel: #ffffff;           /* 卡片 / 面板白 */
+  --line: #e4e7e3;            /* 分隔线 */
+  --text: #2b322e;            /* 主文字 */
+  --text-light: #8a938c;      /* 次要文字 */
+  --radius: 12px;             /* 卡片圆角 */
+}
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding-bottom: 74px; /* 给底部那条「状态预览」留位置，别挡住列表最后一条 */
+}
+
+/* ===== 顶栏：品牌在左、主操作在右 ===== */
+.mv-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.mv-brand { display: flex; align-items: center; gap: 10px; }
+.mv-logo { font-size: 26px; }
+.mv-topbar h1 { font-size: 19px; line-height: 1.2; }
+.mv-sub { font-size: 12px; color: var(--text-light); }
+
+.mv-btn {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: var(--main-green);
+  color: #fff;
+  font-size: 14px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  white-space: nowrap; /* 窄屏也不让按钮文字折行 */
+}
+.mv-btn:active { background: var(--main-green-dark); }
+
+/* ===== 主体：限宽居中，内容上下拉开 ===== */
+.mv-main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ===== 统计卡片区 ===== */
+.mv-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr); /* 宽屏四列 */
+  gap: 12px;
+}
+.stat-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.stat-value {
+  font-size: 24px;
+  line-height: 1.1;
+  color: var(--main-green); /* 数字用主题绿，一眼看到 */
+}
+.stat-unit { font-size: 12px; color: var(--text-light); margin-left: 3px; }
+.stat-label { font-size: 12px; color: var(--text-light); }
+
+/* ===== 素材列表 ===== */
+.mv-list-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden; /* 让最后一条的直角被圆角裁掉 */
+}
+.mv-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.mv-list-head h2 { font-size: 15px; }
+.mv-count { font-size: 12px; color: var(--text-light); }
+
+.mv-list { list-style: none; }
+.mv-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.mv-item:last-child { border-bottom: none; } /* 最后一条不要多余的分隔线 */
+
+.mv-icon { font-size: 18px; flex: none; }
+.mv-info {
+  flex: 1;
+  min-width: 0; /* 关键：允许下面的省略号生效 */
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mv-name {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* 名字太长就省略号，不把列表撑破 */
+}
+.mv-meta { font-size: 11px; color: var(--text-light); }
+
+.mv-progress {
+  flex: none;
+  width: 110px;
+  height: 6px;
+  background: #e9efeb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.mv-bar { height: 100%; background: var(--main-green); border-radius: 3px; }
+.mv-pct {
+  flex: none;
+  width: 34px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-light);
+}
+
+/* ===== 手机端：卡片改两列，进度条收窄给名字让地方 ===== */
+@media (max-width: 640px) {
+  .mv-main { padding: 14px; }
+  .mv-stats { grid-template-columns: repeat(2, 1fr); }
+  .mv-progress { width: 60px; }
+  .mv-state-bar { font-size: 11px; padding: 6px 8px; }
+}
+
+/* ===================================================================
+   以下为 Day 8 板块③ 新增：四种状态里「非正常态」的样式
+   （有数据态用的是上面已有的 .mv-stats / .mv-list）
+   =================================================================== */
+
+/* 内容外壳：骨架屏和正常内容各自是一列，行间距和 .mv-main 一致 */
+.mv-content,
+.mv-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ===== ① 加载中：骨架屏 =====
+   灰色块 + 一道来回扫过的高光（shimmer），表示「这里正在加载」。
+   用骨架块而不是转圈：占位尺寸和真实内容一致，数据到达时页面不会跳。 */
+.sk-card,
+.sk-line,
+.sk-dot {
+  background: linear-gradient(90deg, #ecefec 25%, #f6f8f6 37%, #ecefec 63%);
+  background-size: 400% 100%;
+  animation: sk-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes sk-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+
+.sk-card {
+  height: 74px;                  /* 和真实统计卡片差不多高 */
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+}
+.sk-row { align-items: center; }
+.sk-dot {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;            /* 占住那个 🎵 图标的位置 */
+}
+.sk-line { display: block; border-radius: 4px; }
+.sk-title { width: 62%; height: 12px; }
+.sk-meta  { width: 38%; height: 9px; margin-top: 7px; }
+.sk-count { width: 42px; height: 10px; }
+
+/* 尊重系统设置：开了「减少动态效果」就不要再闪（无障碍细节） */
+@media (prefers-reduced-motion: reduce) {
+  .sk-card, .sk-line, .sk-dot { animation: none; }
+}
+
+/* ===== ③ 空状态 =====
+   关键心态：空不是错误。语气要温和，并给一个「下一步做什么」的入口。 */
+.mv-empty {
+  padding: 44px 20px 48px;
+  text-align: center;
+}
+.mv-empty-icon { font-size: 40px; line-height: 1; }
+.mv-empty h3 { font-size: 16px; margin: 14px 0 6px; }
+.mv-empty p {
+  font-size: 13px;
+  color: var(--text-light);
+  max-width: 340px;
+  margin: 0 auto 18px;
+  line-height: 1.6;
+}
+
+/* ===== ④ 出错 =====
+   三要素：说清发生了什么、给一个出口（重试）、别让用户干等。 */
+.mv-state-box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 44px 20px 46px;
+  text-align: center;
+}
+.mv-state-box h3 { font-size: 16px; margin: 14px 0 6px; }
+.mv-state-box p {
+  font-size: 13px;
+  color: var(--text-light);
+  max-width: 380px;
+  margin: 0 auto 18px;
+  line-height: 1.6;
+}
+.mv-error { border-color: #f0d9d5; }        /* 淡红描边：一眼知道这块不对劲 */
+.mv-error h3 { color: #b5533f; }            /* 标题用警示色，正文仍是灰的 */
+
+/* ===== 状态预览条（开发用）=====
+   固定在底部中间的小胶囊，点四个按钮挨个看四种状态。上线前删掉即可。 */
+.mv-state-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(43, 50, 46, 0.92); /* 深色，和浅色页面区分开：提醒这是「工具」不是页面内容 */
+  color: #fff;
+  font-size: 12px;
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  z-index: 90;
+}
+.mv-bar-label { opacity: 0.7; margin-right: 2px; }
+.mv-state-bar button {
+  font-family: inherit;
+  font-size: 12px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border: none;
+  border-radius: 999px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.mv-state-bar button:hover { background: rgba(255, 255, 255, 0.26); }
+.mv-state-bar button.on { background: var(--main-green); } /* 当前正在预览哪一态 */
+.mv-state-bar.collapsed button[data-state],
+.mv-state-bar.collapsed .mv-bar-label { display: none; }  /* 收起后只剩一个小小的开关 */
