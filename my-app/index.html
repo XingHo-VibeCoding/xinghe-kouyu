@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<!-- 星禾口语 · 主页面（Day 7 第 1 步：骨架） -->
+<!-- 布局三段式：顶栏（标题）/ 中部（左文件夹树 + 右素材列表）/ 底部（播放控制条） -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <!-- 视口设置：让手机端按设备宽度渲染（PWA 手机为主的关键设置） -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>星禾口语</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- ===== PWA（第 7 步）：让应用可安装、全屏启动、离线可用 ===== -->
+  <meta name="theme-color" content="#3a8f6f">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="星禾口语">
+</head>
+<body>
+
+  <!-- ===== 顶栏 ===== -->
+  <header class="topbar">
+    <div class="topbar-title">
+      <span class="logo">🌾</span>
+      <div>
+        <h1>星禾口语</h1>
+        <p class="slogan">老师发的音视频，整理好慢慢听</p>
+      </div>
+    </div>
+    <!-- 导入按钮：第 2 步已启用；点击触发下面隐藏的文件选择框 -->
+    <div class="import-actions">
+      <button id="btn-import" class="btn-primary">＋ 导入素材</button>
+      <!-- 整个文件夹批量导入（PRD A1）：一次把文件夹里的音视频全收进来 -->
+      <button id="btn-import-folder" class="btn-primary ghost"
+              title="选择一整个文件夹：按原目录结构还原成应用内的文件夹树，批量导入里面的音视频">＋ 导入文件夹</button>
+    </div>
+    <!-- 隐藏的文件选择框：支持一次选多个，只收音频/视频类型 -->
+    <input type="file" id="file-input" multiple hidden
+           accept=".mp3,.m4a,.wav,.mp4,.mov,.webm,audio/*,video/*">
+    <!-- 隐藏的文件夹选择框：webkitdirectory 让选择器变成「选文件夹」，
+         选中后里面所有文件的相对路径会带到 webkitRelativePath -->
+    <input type="file" id="folder-input" webkitdirectory multiple hidden
+           accept=".mp3,.m4a,.wav,.mp4,.mov,.webm,audio/*,video/*">
+  </header>
+
+  <!-- ===== 中部：左树 + 右列表 ===== -->
+  <main class="workspace">
+
+    <!-- 左侧：应用内文件夹树 -->
+    <aside class="folder-panel">
+      <div class="panel-head">
+        <h2>文件夹</h2>
+        <!-- 文件夹排序：同一层内的文件夹按名称或创建时间排，选择会记在浏览器里 -->
+        <select id="folder-sort" class="sort-select folder-sort" title="文件夹排序方式（对每一层分别生效）">
+          <option value="time-asc">时间：旧→新</option>
+          <option value="time-desc">时间：新→旧</option>
+          <option value="name-asc">名称：A→Z</option>
+          <option value="name-desc">名称：Z→A</option>
+        </select>
+        <!-- 新建文件夹按钮：第 3 步已启用 -->
+        <button id="btn-new-folder" class="btn-small">＋ 新建</button>
+      </div>
+      <!-- 文件夹树容器：第 3 步起由 JS 渲染（固定项 + 用户自建文件夹） -->
+      <ul id="folder-tree" class="folder-tree"></ul>
+      <p class="panel-tip">在应用内自由组织，与电脑里的文件夹无关</p>
+      <!-- 右边缘拖拽把手：按住左右拖调宽度，双击恢复默认（长文件夹名看不全时用） -->
+      <div id="panel-resizer" class="panel-resizer" title="拖动调整宽度，双击恢复默认"></div>
+    </aside>
+
+    <!-- 右侧：素材列表 -->
+    <section class="list-panel">
+      <div class="panel-head">
+        <h2>素材</h2>
+        <span id="list-count" class="list-count">0 个</span>
+        <!-- 排序方式：按导入时间或名称，选择会记在浏览器里 -->
+        <select id="sort-select" class="sort-select" title="素材排序方式">
+          <option value="time-desc">时间：新→旧</option>
+          <option value="time-asc">时间：旧→新</option>
+          <option value="name-asc">名称：A→Z</option>
+          <option value="name-desc">名称：Z→A</option>
+        </select>
+      </div>
+      <!-- 素材列表容器：第 2 步起由 JS 渲染，数据来自 IndexedDB -->
+      <ul id="material-list" class="material-list">
+        <li class="empty-tip">还没有素材。<br>点右上角「＋ 导入素材」添加第一个文件。</li>
+      </ul>
+    </section>
+
+  </main>
+
+  <!-- 视频浮窗（居中大卡片）：播放视频素材时自动出现，音频素材时整个隐藏只出声。
+       ✕ 只收起画面、声音继续（练听力时可关画面）；底栏 🖼 按钮可随时调回画面 -->
+  <div id="video-float" hidden>
+    <!-- 顶部拖拽抓手：按住可把浮窗拖到任意位置（QQ 视频窗同款），双击回到居中 -->
+    <div id="video-drag" title="按住拖动移动窗口；双击回到居中">⋯⋯</div>
+    <video id="media-player" playsinline></video>
+    <button id="video-close" title="收起画面（声音继续播放）">✕</button>
+  </div>
+
+  <!-- ===== 底部：播放控制条（两行：进度条 + 控制按钮） ===== -->
+  <footer class="player-bar">
+    <div class="seek-row">
+      <span id="time-cur" class="time-label">0:00.0</span>
+      <div class="seek-wrap">
+        <input type="range" id="seek-bar" min="0" max="10000" step="1" value="0" disabled
+               title="拖动切换进度（0.1 秒刻度）">
+        <!-- AB 段可视化：A 点之后已播部分叠一条琥珀色带；A、B 都打了则固定为 A~B 区间 -->
+        <div id="ab-band" class="ab-band" hidden></div>
+      </div>
+      <span id="time-dur" class="time-label">0:00.0</span>
+    </div>
+    <div class="player-main">
+      <div class="now-playing">未在播放</div>
+      <div class="controls">
+        <!-- 快退 5 秒 / 播放暂停 / 快进 5 秒 -->
+        <button class="ctl" id="btn-back"    title="快退 5 秒">⏪</button>
+        <button class="ctl big" id="btn-play" title="播放 / 暂停">▶</button>
+        <button class="ctl" id="btn-forward" title="快进 5 秒">⏩</button>
+      </div>
+      <div class="player-info">
+        <button id="btn-speed" class="chip" title="变速：点击切换速度">1.0x</button>
+        <button id="btn-pic" class="chip" title="显示 / 隐藏视频画面" style="display:none">🖼</button>
+        <button id="btn-loop" class="chip" title="单集循环：整个素材反复播放">🔁</button>
+      </div>
+    </div>
+    <!-- AB 复读独立一行：A / B / 重置 三个关键按钮，图标放大便于点击 -->
+    <div class="ab-row">
+      <button class="ab-btn" id="btn-a"
+              title="在当前位置打 A 点（起点）。可先拖进度条定位再点；再点可重新调整。A 必须在 B 左边">A</button>
+      <button class="ab-btn" id="btn-b"
+              title="在当前位置打 B 点（终点）并开始循环。可先拖进度条定位再点；再点可重新调整。B 必须在 A 右边">B</button>
+      <button class="ab-btn" id="btn-ab-reset"
+              title="重置：清掉 A、B 点，退出复读，恢复正常播放">↺ 重置</button>
+    </div>
+  </footer>
+
+  <!-- ===== 移动素材弹窗（第 3 步）：平时隐藏，点素材上的 📤 弹出 ===== -->
+  <div id="move-modal" class="modal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>移动到…</h3>
+        <button id="move-close" class="modal-close">✕</button>
+      </div>
+      <div id="move-target-list" class="move-target-list">
+        <!-- 目标文件夹选项由 JS 渲染 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 数据层先加载（定义 DB 对象），页面逻辑后加载（使用它）——顺序不能反 -->
+  <script src="js/db.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

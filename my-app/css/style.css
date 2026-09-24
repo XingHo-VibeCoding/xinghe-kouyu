@@ -1,0 +1,497 @@
+/* 星禾口语 · 全站样式（Day 7 第 1 步：骨架外观） */
+/* 设计基调：浅色、简洁、手机优先——呼应 PRD「无广告、清爽好用」的定位 */
+
+/* ===== 基础重置与变量 ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --main-green: #3a8f6f;      /* 主题绿：呼应「星禾」的禾苗意象 */
+  --main-green-dark: #2e7459; /* 按下时的深绿 */
+  --bg: #f6f7f5;              /* 页面底色：暖灰白 */
+  --panel: #ffffff;           /* 面板白 */
+  --line: #e4e7e3;            /* 分隔线 */
+  --text: #2b322e;            /* 主文字 */
+  --text-light: #8a938c;      /* 次要文字 */
+}
+
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  /* 三段式布局：页面占满全屏，中部自动伸展，底部播放条固定在下面 */
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 滚动发生在面板内部，页面本身不滚 */
+}
+
+/* ===== 顶栏 ===== */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.topbar-title { display: flex; align-items: center; gap: 10px; }
+.logo { font-size: 28px; }
+.topbar h1 { font-size: 20px; line-height: 1.2; }
+.slogan { font-size: 12px; color: var(--text-light); }
+
+/* ===== 按钮通用 ===== */
+button { font-family: inherit; cursor: pointer; border: none; }
+button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明，提示还没启用 */
+
+.btn-primary {
+  background: var(--main-green);
+  color: #fff;
+  font-size: 14px;
+  padding: 9px 18px;
+  border-radius: 8px;
+}
+.btn-primary:not(:disabled):active { background: var(--main-green-dark); }
+
+/* 「导入文件夹」：同尺寸的浅色款，和主按钮并排但主次分明 */
+.btn-primary.ghost {
+  background: #eef3f0;
+  color: var(--main-green);
+  border: 1px solid var(--main-green);
+}
+.btn-primary.ghost:not(:disabled):active { background: #d9ebe2; }
+.import-actions { display: flex; align-items: center; gap: 8px; }
+
+.btn-small {
+  background: #eef3f0;
+  color: var(--main-green);
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 6px;
+}
+
+/* ===== 中部工作区：左右两栏 ===== */
+.workspace {
+  flex: 1;               /* 占据顶栏与底栏之间的全部空间 */
+  display: flex;
+  min-height: 0;         /* 允许子面板内部滚动（flex 布局的关键细节） */
+}
+
+/* —— 左侧文件夹面板 —— */
+.folder-panel {
+  width: 220px;
+  position: relative; /* 让拖拽把手的 absolute 定位以本面板为基准 */
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;              /* 标题 / 排序下拉 / 新建按钮 之间留最小间隙 */
+  margin-bottom: 10px;
+}
+.panel-head h2 { flex: none; }
+/* 文件夹排序下拉：左栏窄（默认 220px），所以做得比素材那个更紧凑 */
+.folder-sort {
+  font-size: 11px;
+  padding: 2px 4px;
+  max-width: 104px;
+  margin-left: auto;     /* 靠到「＋ 新建」这一侧，标题留在最左 */
+}
+.panel-head h2 { font-size: 14px; }
+.panel-tip { margin-top: auto; font-size: 11px; color: var(--text-light); }
+
+/* 右边缘拖拽把手：按住可调面板宽度（长文件夹名看不全时用） */
+.panel-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize; /* 鼠标悬停变 ↔ 形状 */
+  z-index: 10;
+}
+.panel-resizer:hover { background: #e3f0ea; }
+
+.folder-tree { list-style: none; overflow-y: auto; }
+.folder-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.folder-item.active { background: #e3f0ea; color: var(--main-green); font-weight: 600; }
+
+/* —— 右侧素材列表 —— */
+.list-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+  min-width: 0;
+}
+.list-count { font-size: 12px; color: var(--text-light); }
+/* 排序下拉：放在素材面板标题栏右侧，小尺寸不抢视线 */
+.sort-select {
+  font-size: 12px;
+  color: var(--text);
+  background: #eef3f0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+.sort-select:hover { background: #e3f0ea; }
+/* 让计数徽标和排序下拉一起靠右，标题仍留在左边 */
+.panel-head .list-count { margin-left: auto; margin-right: 8px; }
+.material-list {
+  list-style: none;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  flex: 1;
+}
+.empty-tip {
+  height: 100%;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-light);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+/* —— 素材列表条目（第 2 步起使用） —— */
+.material-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer; /* 第 4 步起点击即播放 */
+}
+.material-item:last-child { border-bottom: none; } /* 最后一条不要分隔线 */
+.material-item:hover { background: #f0f6f2; }      /* 鼠标悬停淡绿提示可点 */
+.material-item.playing { background: #e3f0ea; font-weight: 600; } /* 正在播放的条目高亮 */
+.m-icon { font-size: 18px; }
+.m-name {
+  flex: 1;
+  font-size: 14px;
+  /* 名字太长时截断并显示省略号，防止撑破布局 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.m-size { font-size: 12px; color: var(--text-light); }
+/* 位置徽标：只在「全部素材」视图显示，标明素材归在哪个文件夹 */
+.m-loc {
+  font-size: 11px;
+  color: var(--text-light);
+  background: #f2f5f2;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.m-move {
+  background: none;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 6px;
+  opacity: 0.55;
+}
+.m-move:hover { opacity: 1; background: #e3f0ea; }
+/* ⤴️ 一键移出文件夹（样式与 📤 一致） */
+.m-unfile {
+  background: none;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 6px;
+  opacity: 0.55;
+}
+.m-unfile:hover { opacity: 1; background: #e3f0ea; }
+/* ✏️ 重命名（样式与前两个一致：平时半透明、悬停变清晰） */
+.m-rename {
+  background: none;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 6px;
+  opacity: 0.55;
+}
+.m-rename:hover { opacity: 1; background: #e3f0ea; }
+
+/* ===== 文件夹树条目增强（第 3 步） ===== */
+.folder-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+.f-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap; /* 文件夹名太长截断 */
+}
+.f-actions { display: none; gap: 2px; }
+.folder-item:hover .f-actions { display: flex; } /* 悬停时才显示操作按钮，保持界面干净 */
+.f-btn {
+  background: none;
+  font-size: 12px;
+  padding: 2px;
+  border-radius: 4px;
+}
+.f-btn:hover { background: #e3f0ea; }
+
+/* ===== 树展开箭头（资源管理器式 ▸/▾） ===== */
+.f-arrow {
+  flex: none;
+  width: 18px;
+  text-align: center;
+  font-size: 18px;
+  line-height: 1;   /* 和文件夹名垂直居中对齐 */
+  color: var(--text-light);
+  cursor: pointer;
+  user-select: none; /* 点快了不选中文字 */
+}
+.f-arrow.empty { cursor: default; } /* 没有子文件夹的占位箭头不可点 */
+
+/* ===== 移动素材弹窗（第 3 步） ===== */
+.modal {
+  display: none;             /* 平时隐藏 */
+  position: fixed;
+  inset: 0;                  /* 铺满全屏 */
+  background: rgba(0,0,0,0.35);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+.modal.show { display: flex; } /* 加 show 类才显示 */
+.modal-box {
+  background: var(--panel);
+  border-radius: 12px;
+  width: min(320px, 90vw);   /* 手机上也放得下 */
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.modal-head h3 { font-size: 15px; }
+.modal-close { background: none; font-size: 14px; color: var(--text-light); }
+.move-target-list { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.move-target {
+  text-align: left;
+  background: #f2f5f2;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.move-target:not(:disabled):hover { background: #e3f0ea; }
+.move-target:disabled { opacity: 0.6; cursor: default; }
+.here { font-size: 11px; color: var(--main-green); }
+
+/* ===== 视频浮窗（居中大卡片） =====
+   播放视频素材时出现在屏幕中部（不铺满、页面仍可点）；
+   音频素材时整个隐藏只出声。✕ 收起画面但声音继续 */
+#video-float {
+  position: fixed;
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+  width: min(640px, 92vw);
+  z-index: 80;
+}
+#media-player {
+  display: block;
+  width: 100%;
+  max-height: 62vh; /* 给顶部拖拽抓手腾一点高度 */
+  border-radius: 0 0 12px 12px; /* 上边被抓手盖住，只圆下角 */
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  background: #000;
+}
+
+/* 顶部拖拽抓手：按住可把浮窗拖到任意位置（QQ 视频窗同款），双击回中 */
+#video-drag {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 12px 12px 0 0;
+  cursor: grab;          /* 悬停抓手光标 */
+  user-select: none;     /* 拖动时不选中文字 */
+  touch-action: none;    /* 手机上按住拖动不被页面滚动接管 */
+}
+#video-drag:active { cursor: grabbing; }
+#video-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 13px;
+}
+#video-close:hover { background: rgba(0, 0, 0, 0.75); }
+
+/* ===== 底部播放条（两行：进度条 + 控制按钮） ===== */
+.player-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+.player-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.seek-row { display: flex; align-items: center; gap: 8px; }
+.time-label {
+  font-size: 11px;
+  color: var(--text-light);
+  width: 52px;      /* 放得下 0.1 秒位：如 10:05.3 */
+  text-align: center;
+}
+.seek-wrap {
+  position: relative;   /* AB 色带的定位基准 */
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+/* 自绘进度条：轨道/填充/圆点都自己画，才能实现「AB 复读时圆点变色」。
+   --fill = 已播进度（JS 每帧更新）；AB 复读激活时加 .ab-active 类，圆点变琥珀色 */
+#seek-bar {
+  flex: 1;
+  width: 100%;
+  height: 18px;              /* 命中区域，好拖 */
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  --fill: 0%;
+}
+#seek-bar:disabled { opacity: 0.45; }
+#seek-bar::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--main-green) var(--fill), #e4e7e3 var(--fill));
+}
+#seek-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--main-green);
+  margin-top: -4.5px;        /* 14px 圆点对齐 5px 轨道 */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+#seek-bar.ab-active::-webkit-slider-thumb { background: #f0a83c; } /* AB 复读中：琥珀色圆点 */
+#seek-bar::-moz-range-track {
+  height: 5px;
+  border-radius: 3px;
+  background: #e4e7e3;
+}
+#seek-bar::-moz-range-progress {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--main-green);
+}
+#seek-bar::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--main-green);
+}
+#seek-bar.ab-active::-moz-range-thumb { background: #f0a83c; }
+/* AB 段可视化：叠在进度条上的琥珀色带，和绿色轨道区分开。
+   pointer-events:none 是关键——鼠标事件穿透色带，拖动不受影响 */
+.ab-band {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 6px;
+  border-radius: 3px;
+  background: #f0a83c;
+  pointer-events: none;
+}
+.now-playing { font-size: 13px; color: var(--text-light); flex: 1; }
+.controls { display: flex; align-items: center; gap: 10px; }
+.ctl {
+  background: #eef3f0;
+  border-radius: 50%;
+  font-size: 16px;
+  width: 40px; height: 40px;
+}
+.ctl.big { width: 52px; height: 52px; font-size: 20px; background: var(--main-green); color: #fff; }
+.player-info { display: flex; gap: 8px; flex: 1; justify-content: flex-end; }
+.chip {
+  background: #eef3f0;
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+/* 功能开启中的按钮：变成实心绿，一眼看出「正在生效」 */
+.chip.active { background: var(--main-green); color: #fff; }
+
+/* ===== AB 复读按钮行（A / B / 重置 三个关键按钮：独立一行、放大便于点击） ===== */
+.ab-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 16px 12px;
+  border-top: 1px dashed var(--line); /* 与上面的播放按钮轻轻分开 */
+}
+.ab-btn {
+  min-width: 96px;
+  padding: 9px 18px;
+  font-size: 17px;      /* 关键功能：比普通按钮明显大 */
+  font-weight: 600;
+  color: var(--text);
+  background: #eef3f0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+}
+.ab-btn:hover { background: #e3f0ea; }
+.ab-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+/* 已打点 / 复读中：琥珀色实心，与进度条上的 AB 色带同一套颜色语言 */
+.ab-btn.active {
+  background: #f0a020;
+  border-color: #f0a020;
+  color: #fff;
+}
+.ab-btn:active { transform: scale(0.97); } /* 按下去有一点回弹手感 */
+
+/* ===== 手机端适配（手机为主战场，宽度不足时左右栏改为上下） ===== */
+@media (max-width: 640px) {
+  .workspace { flex-direction: column; }
+  .folder-panel { width: 100%; max-height: 180px; border-right: none; border-bottom: 1px solid var(--line); }
+  .panel-resizer { display: none; } /* 手机上是上下布局，宽度拖拽没意义 */
+  .slogan { display: none; } /* 小屏隐藏口号，给标题省地方 */
+  /* AB 三个按钮平分宽度，手机上也好按 */
+  .ab-row { gap: 8px; padding: 6px 10px 10px; }
+  .ab-btn { flex: 1; min-width: 0; padding: 9px 6px; font-size: 16px; }
+}
