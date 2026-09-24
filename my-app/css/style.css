@@ -101,7 +101,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   align-items: center;
   justify-content: space-between;
   gap: 6px;              /* 标题 / 排序下拉 / 新建按钮 之间留最小间隙 */
-  margin-bottom: 10px;
+  margin-bottom: var(--space-3);
 }
 .panel-head h2 { flex: none; }
 /* 文件夹排序下拉：左栏窄（默认 220px），所以做得比素材那个更紧凑 */
@@ -221,7 +221,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   font-size: 14px;
   padding: var(--space-1);
   border-radius: 6px;
-  opacity: 0.55;
+  opacity: 0.7;          /* 平时可见可发现，悬停变实（0.55 太隐身，新用户发现不了可点） */
 }
 .m-move:hover { opacity: 1; background: #e3f0ea; }
 /* ⤴️ 一键移出文件夹（样式与 📤 一致） */
@@ -230,7 +230,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   font-size: 14px;
   padding: var(--space-1);
   border-radius: 6px;
-  opacity: 0.55;
+  opacity: 0.7;          /* 平时可见可发现，悬停变实（0.55 太隐身，新用户发现不了可点） */
 }
 .m-unfile:hover { opacity: 1; background: #e3f0ea; }
 /* ✏️ 重命名（样式与前两个一致：平时半透明、悬停变清晰） */
@@ -239,7 +239,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   font-size: 14px;
   padding: var(--space-1);
   border-radius: 6px;
-  opacity: 0.55;
+  opacity: 0.7;          /* 平时可见可发现，悬停变实（0.55 太隐身，新用户发现不了可点） */
 }
 .m-rename:hover { opacity: 1; background: #e3f0ea; }
 
@@ -297,13 +297,13 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   max-height: 70vh;
   display: flex;
   flex-direction: column;
-  padding: 14px;
+  padding: var(--space-4);
 }
 .modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: var(--space-3);
 }
 .modal-head h3 { font-size: 15px; }
 .modal-close { background: none; font-size: 14px; color: var(--text-light); }
@@ -389,7 +389,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
 .player-bar {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);   /* 进度条行与按钮行之间的呼吸（节奏：8px） */
   padding: 10px 16px;
   background: var(--panel);
   border-top: 1px solid var(--line);
@@ -589,7 +589,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   /* 进度条尽量长、方便微调：时间标签更小更窄、进度条两侧留白收紧 */
   .player-bar { padding: var(--space-2); }
   .seek-row { gap: var(--space-1); }
-  .time-label { font-size: 9px; width: 36px; } /* 36px 仍放得下 0.1 秒位（如 10:05.3） */
+  .time-label { font-size: 10px; width: 40px; } /* 9px 实测偏小；40px 仍放得下 0.1 秒位（如 10:05.3），进度条仅让出 4px */
   /* AB 三个按钮平分宽度，手机上也好按 */
   .ab-row { gap: var(--space-2); padding: 6px 10px 10px; }
   .ab-btn { flex: 1; min-width: 0; padding: 9px 6px; font-size: 16px; }
