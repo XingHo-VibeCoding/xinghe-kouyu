@@ -94,13 +94,16 @@
   <!-- 视频浮窗（居中大卡片）：播放视频素材时自动出现，音频素材时整个隐藏只出声。
        ✕ 只收起画面、声音继续（练听力时可关画面）；底栏 🖼 按钮可随时调回画面 -->
   <div id="video-float" hidden>
-    <!-- 顶部拖拽抓手：按住可把浮窗拖到任意位置（QQ 视频窗同款），双击回到居中 -->
-    <div id="video-drag" title="按住拖动移动窗口；双击回到居中">⋯⋯</div>
+    <!-- 顶部拖拽抓手：按住可把浮窗拖到任意位置（QQ 视频窗同款），双击回到居中。
+         播放视频时这里同时是标题栏：显示正在播的文件名 -->
+    <div id="video-drag" title="按住拖动移动窗口；双击回到居中"><span id="video-title">⋯⋯</span></div>
     <video id="media-player" playsinline></video>
-    <button id="video-close" title="收起画面（声音继续播放）">✕</button>
+    <button id="video-close" title="收起画面（声音继续播放）" aria-label="收起画面，声音继续播放">✕</button>
     <!-- 右下角缩放手柄：按住拖动调大小（宽高比锁定，画面不变形），双击恢复默认大小 -->
     <div id="video-resize" title="按住拖动调整大小（画面比例保持不变）；双击恢复默认大小"></div>
   </div>
+  <!-- 收起画面后的轻提示：「声音还在继续」从悬停提示搬到看得见的地方（JS 控制显隐） -->
+  <div id="vf-toast" hidden>画面已收起，声音继续播放中</div>
 
   <!-- ===== 底部：播放控制条（两行：进度条 + 控制按钮） ===== -->
   <footer class="player-bar">

@@ -340,41 +340,51 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   background: #000;
 }
 
-/* 顶部拖拽抓手：按住可把浮窗拖到任意位置（QQ 视频窗同款），双击回中 */
+/* 顶部拖拽抓手：按住可把浮窗拖到任意位置（QQ 视频窗同款），双击回中。
+   ✕ 也住在这条里（见 #video-close）——抓手即「标题栏」，✕ 不再跨压视频画面 */
 #video-drag {
-  height: 20px;
+  height: 40px;          /* 20 → 40：手机拇指有足够的抓握区 */
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  letter-spacing: 3px;
+  font-size: 12px;
   color: #fff;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.72);  /* 0.55 → 0.72：亮画面（白底课件）上文字仍可读 */
   border-radius: 12px 12px 0 0;
   cursor: grab;          /* 悬停抓手光标 */
   user-select: none;     /* 拖动时不选中文字 */
   touch-action: none;    /* 手机上按住拖动不被页面滚动接管 */
+  padding: 0 44px;       /* 左右给 ✕ / 对称留位，中间文字不与按钮重叠 */
 }
 #video-drag:active { cursor: grabbing; }
+/* 标题栏文字：正在播的文件名由 JS 写入；超长省略号，不与 ✕ 重叠 */
+#video-title {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 #video-close {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 28px;
-  height: 28px;
+  top: 3px;
+  right: 3px;            /* 完全落在抓手条内（高 40px 容纳 34px 按钮），不再跨压画面 */
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(0, 0, 0, 0.72);
   color: #fff;
-  font-size: 13px;
+  font-size: 15px;
+  z-index: 2;            /* 显式置顶：与抓手条同层时保证 ✕ 永远在上可点 */
 }
-#video-close:hover { background: rgba(0, 0, 0, 0.75); }
+#video-close:hover { background: rgba(0, 0, 0, 0.9); }  /* 悬停加重，一眼可辨 */
+#video-close:active { transform: scale(0.92); }          /* 按压回弹反馈（手机上也有） */
 /* 右下角缩放手柄：按住拖动调大小（宽高比锁定）；三条斜线是「这里能拉」的通用视觉暗号 */
 #video-resize {
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 24px;
-  height: 24px;
+  width: 32px;           /* 24 → 32：手机上更容易捏准 */
+  height: 32px;
   cursor: nwse-resize;   /* 斜向缩放光标 */
   border-radius: 0 0 12px 0; /* 跟容器右下角圆角对齐 */
   background:
@@ -384,6 +394,24 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   touch-action: none;    /* 手机上拖动不触发页面滚动 */
 }
 #video-resize:hover { filter: brightness(1.6); }
+
+/* 收起画面后的轻提示：把「声音还在继续」从悬停提示里搬到看得见的地方（触屏没有悬停） */
+#vf-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 110px;         /* 悬浮在底部播放条上方，不挡控制 */
+  transform: translateX(-50%);
+  background: rgba(43, 50, 46, 0.92);  /* 用主文字色的深色底，白字对比充足 */
+  color: #fff;
+  font-size: 13px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.25s;
+  z-index: 90;
+  pointer-events: none;  /* 纯提示，不挡下面的操作 */
+}
+#vf-toast.show { opacity: 1; }
 
 /* ===== 底部播放条（两行：进度条 + 控制按钮） ===== */
 .player-bar {
@@ -593,4 +621,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   /* AB 三个按钮平分宽度，手机上也好按 */
   .ab-row { gap: var(--space-2); padding: 6px 10px 10px; }
   .ab-btn { flex: 1; min-width: 0; padding: 9px 6px; font-size: 16px; }
+  /* 视频浮窗控制区：手机端再放大一档，贴近 44px 触控基准 */
+  #video-drag { height: 44px; padding: 0 48px; }
+  #video-close { width: 40px; height: 40px; top: 2px; right: 2px; }
+  #video-resize { width: 40px; height: 40px; }
 }

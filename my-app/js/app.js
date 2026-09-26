@@ -416,6 +416,11 @@ async function playMaterial(id) {
   // 视频：显示居中浮窗，🖼 按钮同时亮出；音频：浮窗隐藏只出声
   const isVideo = (m.type === 'video');
   videoFloat.hidden = !isVideo;
+  if (isVideo) {
+    // 标题栏显示正在播的文件名（textContent 只写纯文本，文件名含特殊字符也不会出事）
+    const titleEl = document.getElementById('video-title');
+    if (titleEl) titleEl.textContent = m.name;
+  }
   btnPic.style.display = isVideo ? '' : 'none';
   // 新素材就绪：进度条归零并解锁；AB 点和循环一起复位（它们只对当前素材有意义）
   seekBar.disabled = false;
@@ -1021,7 +1026,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   requestAnimationFrame(tickSeekBar);
 
   // 视频画面：✕ 收起浮窗（声音继续），🖼 随时调回
-  btnVideoClose.addEventListener('click', () => { videoFloat.hidden = true; });
+  // 收起画面后的轻提示：让「声音还在继续」看得见（触屏没有悬停提示可用）
+  const vfToast = document.getElementById('vf-toast');
+  let vfToastTimer = null;
+  function showVfToast() {
+    if (!vfToast) return;
+    vfToast.hidden = false;
+    requestAnimationFrame(() => vfToast.classList.add('show')); // 下一帧再加类，保证过渡动画生效
+    clearTimeout(vfToastTimer);
+    vfToastTimer = setTimeout(() => {
+      vfToast.classList.remove('show');
+      setTimeout(() => { vfToast.hidden = true; }, 300); // 淡出动画走完再彻底隐藏
+    }, 2600);
+  }
+  btnVideoClose.addEventListener('click', () => {
+    const wasPlaying = !mediaPlayer.paused; // 暂停中收起就不用提示「声音继续」
+    videoFloat.hidden = true;
+    if (wasPlaying) showVfToast();
+  });
   btnPic.addEventListener('click', () => { videoFloat.hidden = !videoFloat.hidden; });
 
   // ===== 视频浮窗拖拽移动（QQ 视频窗同款：按住顶部抓手拖到任意位置） =====
