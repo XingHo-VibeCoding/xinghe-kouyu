@@ -22,6 +22,9 @@ let folderSortMode = localStorage.getItem('folderSort') || 'time-asc';
 //   更深层的默认「收起」，用户手动展开的记在 expandedFolders——互不干扰，都尊重手动操作
 let expandedFolders = new Set();
 let collapsedTopFolders = new Set();
+// 刚被展开的文件夹 id（Day 11 动效用）：重绘时给它新露面的子项加入场动画，重绘完立刻清掉，
+// 这样其他场合的重绘（切换文件夹、新建、改名等）不会误触发动画
+let justExpandedId = null;
 
 // ===== 工具函数 =====
 
@@ -80,15 +83,24 @@ async function renderFolderTree() {
 
   // 从顶层开始渲染；只有「已展开」的文件夹才渲染它的下一层（按需展开，不全铺开）
   const childrenMap = buildChildrenMap(folders);
-  const renderLevel = (parentId, depth) => {
+  const renderLevel = (parentId, depth, enterAnim) => {
+    let i = 0;
     for (const f of (childrenMap[parentId] || [])) {
       const hasChildren = (childrenMap[f.id] || []).length > 0;
-      treeEl.appendChild(buildFolderNode({ id: f.id, icon: '📁', name: f.name, isUser: true }, depth, hasChildren));
+      const li = buildFolderNode({ id: f.id, icon: '📁', name: f.name, isUser: true }, depth, hasChildren);
+      if (enterAnim) { // 刚展开的这一层：子项依次滑入（入场延迟按兄弟次序递增，「新内容从哪来」一眼可见）
+        li.classList.add('f-enter');
+        li.style.animationDelay = (i * 24) + 'ms';
+      }
+      treeEl.appendChild(li);
       const expanded = depth === 0 ? !collapsedTopFolders.has(f.id) : expandedFolders.has(f.id);
-      if (hasChildren && expanded) renderLevel(f.id, depth + 1);
+      // enterAnim 继续往下传：刚展开的文件夹里本来就已展开的更深层，同样算「新露面」，一起入场
+      if (hasChildren && expanded) renderLevel(f.id, depth + 1, enterAnim || f.id === justExpandedId);
+      i++;
     }
   };
   renderLevel('root', 0);
+  justExpandedId = null; // 重绘完成立刻清掉：其他场合的重绘（切换文件夹、新建、重命名等）不带动画
 }
 
 // 造一个树节点 <li>：depth 决定缩进；hasChildren 决定前面有没有展开箭头
@@ -101,7 +113,7 @@ function buildFolderNode(n, depth, hasChildren) {
   // 展开状态：顶层看「是否被手动收起」，深层看「是否被手动展开」（默认值相反）
   const isOpen = depth === 0 ? !collapsedTopFolders.has(n.id) : expandedFolders.has(n.id);
   const arrowHtml = (n.isUser && hasChildren)
-    ? '<span class="f-arrow" title="' + (isOpen ? '收起' : '展开') + '">' + (isOpen ? '▾' : '▸') + '</span>'
+    ? '<span class="f-arrow" tabindex="0" role="button" title="' + (isOpen ? '收起' : '展开') + '">' + (isOpen ? '▾' : '▸') + '</span>'
     : '<span class="f-arrow empty"></span>';
   li.innerHTML =
     arrowHtml +
@@ -116,16 +128,24 @@ function buildFolderNode(n, depth, hasChildren) {
       : '');
   // 展开箭头：点了切换展开/收起（只重绘树，不影响右侧列表）
   const arrow = li.querySelector('.f-arrow');
+  // 键盘可访问（Day 11 加练）：Enter / Space 触发箭头——和鼠标点击走同一条路径
+  arrow.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault(); // 挡掉 Space 默认的页面滚动
+      arrow.click(); // 复用已有 click 逻辑（含入场动画与状态机），不复制代码
+    }
+  });
   if (!arrow.classList.contains('empty')) {
     arrow.addEventListener('click', (e) => {
       e.stopPropagation();
       // 顶层：记「谁被收起」；深层：记「谁被展开」——与各自默认值互补
+      // 展开方向额外记 justExpandedId（入场动效要用）；收起是瞬时重绘，不记
       if (depth === 0) {
-        if (collapsedTopFolders.has(n.id)) collapsedTopFolders.delete(n.id);
+        if (collapsedTopFolders.has(n.id)) { collapsedTopFolders.delete(n.id); justExpandedId = n.id; }
         else collapsedTopFolders.add(n.id);
       } else {
         if (expandedFolders.has(n.id)) expandedFolders.delete(n.id);
-        else expandedFolders.add(n.id);
+        else { expandedFolders.add(n.id); justExpandedId = n.id; }
       }
       renderFolderTree();
     });
@@ -275,6 +295,7 @@ async function renderMaterialList() {
         '<span class="m-size">' + formatSize(m.size) + '</span>' +
         '<span class="m-actions">' +
           unfileHtml +
+          '<button class="m-copy" title="复制文件名" aria-label="复制文件名">📋</button>' +
           '<button class="m-rename" title="重命名（只改应用里的名字，不动原文件）">✏️</button>' +
           '<button class="m-move" title="移动到其他文件夹">📤</button>' +
         '</span>' +
@@ -290,6 +311,25 @@ async function renderMaterialList() {
       e.stopPropagation();
       renameMaterialFlow(m);
     });
+    // 📋 复制文件名：主反馈 = 按钮短暂变 ✓（状态变化，最直接的「生效了」）；
+    // 副反馈 = 底部轻提示，带上复制了什么（toast 能带详情，但容易被错过，所以只当副手）
+    li.querySelector('.m-copy').addEventListener('click', async (e) => {
+      e.stopPropagation(); // 不触发条目的「点击播放」
+      const copyBtn = e.currentTarget; // await 之后 e.currentTarget 会变 null，必须先存
+      const ok = await copyText(m.name);
+      if (ok) {
+        showAppToast('已复制「' + m.name + '」');
+        copyBtn.textContent = '✓';
+        copyBtn.classList.add('copied');
+        clearTimeout(copyBtn._copyTimer); // 连续快点也不乱：先清掉上一次的恢复计时
+        copyBtn._copyTimer = setTimeout(() => {
+          copyBtn.textContent = '📋';
+          copyBtn.classList.remove('copied');
+        }, 1200);
+      } else {
+        showAppToast('复制失败，请长按文件名手动复制');
+      }
+    });
     const unfileBtn = li.querySelector('.m-unfile');
     if (unfileBtn) unfileBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -298,6 +338,48 @@ async function renderMaterialList() {
     });
     listEl.appendChild(li);
   }
+}
+
+// ===== 复制文本（Day 11）：写进剪贴板，带降级兜底 =====
+// navigator.clipboard 只在「安全上下文」可用：localhost 算安全，但手机用局域网 IP 的 http 访问不算，
+// 所以准备了老办法（临时 textarea + execCommand）兜底，电脑和手机两端都能复制
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (err) { /* 新 API 被拒绝（比如权限问题）就落到下面的老办法 */ }
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';        // 藏起来，不让用户看见一闪而过的选区
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (err) { /* 个别浏览器彻底不支持 */ }
+  document.body.removeChild(ta);
+  return ok;
+}
+
+// ===== 通用轻提示（Day 11）：一条深色胶囊，2 秒自动淡出 =====
+// 与视频浮窗的 vf-toast 同一套显隐模式（hidden + .show 淡入淡出），但文字可变、全站复用
+let appToastEl = null, appToastTimer = null;
+function showAppToast(text) {
+  if (!appToastEl) {             // 第一次用时才创建，插到页面末尾
+    appToastEl = document.createElement('div');
+    appToastEl.id = 'app-toast';
+    appToastEl.hidden = true;
+    document.body.appendChild(appToastEl);
+  }
+  appToastEl.textContent = text; // textContent 纯文本写入：文件名里有 < > 之类字符也安全
+  appToastEl.hidden = false;
+  requestAnimationFrame(() => appToastEl.classList.add('show')); // 下一帧再加类，过渡动画才生效
+  clearTimeout(appToastTimer);   // 连续提示时重置计时，不互相打断
+  appToastTimer = setTimeout(() => {
+    appToastEl.classList.remove('show');
+    setTimeout(() => { appToastEl.hidden = true; }, 300); // 淡出动画走完再彻底隐藏
+  }, 2000);
 }
 
 // 树和列表一起刷新（很多操作会同时影响两处）

@@ -242,6 +242,40 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   opacity: 0.7;          /* 平时可见可发现，悬停变实（0.55 太隐身，新用户发现不了可点） */
 }
 .m-rename:hover { opacity: 1; background: #e3f0ea; }
+/* 📋 复制文件名（样式与上面三个一致）；.copied = 复制成功的 ✓ 状态——
+   被点的按钮自己变绿是最强的「生效了」反馈（Day 11 交互反馈主形态），1.2 秒后由 JS 恢复 */
+.m-copy {
+  background: none;
+  font-size: 14px;
+  padding: var(--space-1);
+  border-radius: 6px;
+  opacity: 0.7;          /* 与 ⤴️ ✏️ 📤 同一可见度基准 */
+}
+.m-copy:hover { opacity: 1; background: #e3f0ea; }
+.m-copy.copied {
+  opacity: 1;
+  background: var(--main-green);
+  color: #fff;
+}
+
+/* 通用轻提示 #app-toast：与视频浮窗的收起提示同款视觉（深色胶囊、底部居中、淡入淡出），
+   文字由 JS 动态写入、元素按需创建，全站复用（复制成功等场合） */
+#app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 110px;         /* 悬浮在底部播放条上方，不挡控制 */
+  transform: translateX(-50%);
+  background: rgba(43, 50, 46, 0.92);  /* 用主文字色的深色底，白字对比充足 */
+  color: #fff;
+  font-size: 13px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.25s;
+  z-index: 90;
+  pointer-events: none;  /* 纯提示，不挡下面的操作 */
+}
+#app-toast.show { opacity: 1; }
 
 /* ===== 文件夹树条目增强（第 3 步） ===== */
 .folder-item {
@@ -278,6 +312,23 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   user-select: none; /* 点快了不选中文字 */
 }
 .f-arrow.empty { cursor: default; } /* 没有子文件夹的占位箭头不可点 */
+
+/* ===== 文件夹展开动效（Day 11-C）：刚展开的一层子项依次滑入 =====
+   只做入场、不做退场：树的展开/收起是整棵重绘，收起的元素当场销毁，
+   退场动画得把 DOM 留到动画结束再删、还要加防连点锁——复杂度不值当；
+   而且「新内容从哪来」这个问题的答案本来就在入场方向，收起瞬时即可 */
+@keyframes f-slide-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.folder-item.f-enter {
+  animation: f-slide-in 0.22s ease both; /* both：延迟等待期保持透明，兄弟项才能依次露面 */
+}
+
+/* 系统开了「减少动态效果」就跳过动画（无障碍：动效是增强，不是必需） */
+@media (prefers-reduced-motion: reduce) {
+  .folder-item.f-enter { animation: none; }
+}
 
 /* ===== 移动素材弹窗（第 3 步） ===== */
 .modal {
@@ -626,3 +677,12 @@ button:disabled { opacity: 0.45; cursor: not-allowed; } /* 占位按钮半透明
   #video-close { width: 40px; height: 40px; top: 2px; right: 2px; }
   #video-resize { width: 40px; height: 40px; }
 }
+
+/* —— 键盘可访问性（Day 11 加练）：键盘焦点必须看得见 —— */
+button:focus-visible,
+[role='button']:focus-visible {
+  outline: 2px solid var(--main-green); /* 用主题绿描边：与品牌一致，且在白底/浅灰底上都清晰 */
+  outline-offset: 2px; /* 描边离按钮留 2px，不压住按钮圆角 */
+}
+/* 说明：:focus-visible 只在「键盘聚焦」时出现——鼠标/触屏点击不描边，
+   避免每按一个按钮都闪一圈；纯键盘用户（Tab 键）则始终看得见焦点在哪。 */

@@ -6,7 +6,7 @@
  *       并在浏览器里强刷一次，否则手机上可能一直用旧缓存。
  */
 
-const CACHE_VERSION = 'v34'; // 缓存版本号：改前端代码后记得 +1（v34：✕ 补读屏标注；收起画面后轻提示「声音继续播放中」）
+const CACHE_VERSION = 'v37'; // 缓存版本号：改前端代码后记得 +1（v37：加练——键盘可访问：箭头可聚焦 Enter/Space 触发、:focus-visible 焦点描边）
 const CACHE_NAME = 'xinghe-kouyu-' + CACHE_VERSION;
 
 // 预缓存的骨架文件（第一次打开时全部下载存好）
