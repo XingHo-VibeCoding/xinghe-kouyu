@@ -16,12 +16,12 @@
 | App 框架 | Flutter (Dart) | 一码打包安卓 + 未来 iOS/桌面；已拍板替代 PWA |
 | 状态管理 | Provider | 状态规模中等、概念少、资料多；一个人开发够用到最终版，不换 Riverpod |
 | 页面导航 | Navigator（栈式 push/pop） | 贴近手机 App 交互，天然支持返回上一页 |
-| 结构化存储 | sqflite（SQLite） | 文件夹树、素材元数据、播放位置（**后续接入**） |
-| 大文件存储 | App 私有目录（沙盒） | 音视频本体存文件，数据库只存引用（**后续接入**） |
+| 结构化存储 | sqflite（SQLite） | 文件夹树、素材元数据、播放位置 |
+| 大文件存储 | App 私有目录（沙盒） | 音视频本体存文件，数据库只存引用 |
 | 轻量配置 | shared_preferences | 排序方式、变速倍率等零散设置（**后续接入**） |
 | 音频播放 | just_audio | 变速、循环、AB 段支持全（**后续接入**） |
 | 视频播放 | video_player | Flutter 官方插件（**后续接入**） |
-| 文件选择 | file_picker | 替代 PWA 的文件/文件夹选择（**后续接入**） |
+| 文件选择 | file_picker | 替代 PWA 的文件/文件夹选择 |
 | 后端 | 无（MVP） | 见第 1 节 |
 | Android 包名 | applicationId = `com.xinghe.kouyu` | 装机唯一标识；代码 namespace 保持 `com.xinghe.xinghe_kouyu`，两者允许不同 |
 
@@ -55,7 +55,7 @@ flutter/
 │   ├── models/
 │   │   └── material_item.dart        # 素材条目模型
 │   ├── store/
-│   │   └── material_store.dart       # 素材仓库（四态状态机 + 模拟数据）
+│   │   └── material_store.dart       # 素材仓库（四态状态机 + SQLite 数据访问）
 │   └── pages/
 │       ├── material_list_page.dart   # 页面1 素材列表（四态主展示页）
 │       ├── folder_manage_page.dart   # 页面2 文件夹管理（壳）
@@ -66,3 +66,4 @@ flutter/
 ## 6. 版本记录
 
 - v1.0（2026-09-30）：建项目；定 Provider / Navigator / sqflite 等选型；壳工程（3 页面 + 四态）。
+- v1.1（2026-10-02）：接入 sqflite 真实存储 + file_picker 导入 + 文件夹管理真实化。

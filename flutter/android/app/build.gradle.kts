@@ -6,7 +6,9 @@ plugins {
 
 android {
     namespace = "com.xinghe.xinghe_kouyu"
-    compileSdk = flutter.compileSdkVersion
+    // 显式指定 compileSdk = 36：file_picker 依赖的 flutter_plugin_android_lifecycle
+    // 要求编译 SDK >= 36，而 Flutter 默认值是 34，会导致 checkDebugAarMetadata 报错。
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

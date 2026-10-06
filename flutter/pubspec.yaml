@@ -34,6 +34,21 @@ dependencies:
   # 状态管理：把共享状态（素材仓库等）挂到应用顶层，各页面统一读写
   provider: ^6.1.2
 
+  # 本地数据库（SQLite）：存素材元数据、文件夹结构、播放位置
+  # 说明：安卓/iOS 走 sqflite 官方插件（自带 SQLite 引擎，无需联网下载）。
+  #       桌面端（Windows/Linux）原需 sqflite_common_ffi + sqlite3，但 sqlite3 打包时会去
+  #       GitHub 下载 .so/.dll 文件（国内被墙），已移除；本阶段只在安卓真机上跑。
+  sqflite: ^2.3.3
+  # 拼接数据库文件的绝对路径（跨平台取本地目录）
+  path: ^1.9.0
+  # 取 App 私有目录（素材文件本体存这里）
+  path_provider: ^2.1.4
+  # 系统文件选择器：替代 PWA 的 <input type=file>，选单个/多个音视频文件
+  # 版本说明：8.x 硬编码 compileSdk 34，会与 flutter_plugin_android_lifecycle 要求的
+  # compileSdk>=36 冲突（checkDebugAarMetadata 报错）。10.3.3+ 起改为跟随 Flutter 的
+  # compileSdk，13.x 要求 Flutter>=3.38（本机 3.47.5 满足），故升到最新版根治。
+  file_picker: ^13.1.0
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8

@@ -7,9 +7,10 @@ import 'package:flutter/material.dart';
 import '../models/material_item.dart';
 
 class PlayerPage extends StatefulWidget {
-  const PlayerPage({super.key, required this.item});
+  const PlayerPage({super.key, required this.item, required this.folderName});
 
   final MaterialItem item; // 从素材列表传进来的那条素材
+  final String folderName; // 该素材所属文件夹的名字（列表页已查好传进来）
 
   @override
   State<PlayerPage> createState() => _PlayerPageState();
@@ -47,7 +48,7 @@ class _PlayerPageState extends State<PlayerPage> {
             ),
             const SizedBox(height: 6),
             Text(
-              '${item.folder} · ${item.format.toUpperCase()} · ${item.duration}',
+              '${widget.folderName} · ${item.format.toUpperCase()} · ${item.duration}',
               style: const TextStyle(color: Colors.black54),
             ),
             const Spacer(),

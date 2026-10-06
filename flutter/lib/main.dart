@@ -9,6 +9,8 @@ import 'pages/material_list_page.dart';
 import 'store/material_store.dart';
 
 void main() {
+  // 本阶段只在 Android 真机上运行，sqflite 官方插件会自动初始化数据库工厂，
+  // 因此无需（也不应该）做任何平台判断或 FFI 初始化。
   runApp(const XingheApp());
 }
 
