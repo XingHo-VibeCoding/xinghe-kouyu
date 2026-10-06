@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<!-- 星禾口语 · 前端 mock 版（Day 15 · 板块③ 静态托管部署）
+     用途：验证「静态网站托管」公网可访问；用 PWA 版素材列表当壳，数据是写死的假数据。
+     今天不接后端：API 状态区先写「待接入」，Day 20 跨域配好后再实装 /api/health 调用。 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>星禾口语</title>
+  <style>
+    /* —— 配色沿用 PWA 版 style.css 的主题绿 + 暖灰白 —— */
+    :root {
+      --main-green: #3a8f6f;
+      --main-green-dark: #2e7459;
+      --bg: #f6f7f5;
+      --panel: #ffffff;
+      --line: #e4e7e3;
+      --text: #2b322e;
+      --text-light: #667069;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶栏 */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar-title { display: flex; align-items: center; gap: 10px; }
+    .logo { font-size: 24px; }
+    .topbar h1 { font-size: 20px; line-height: 1.2; }
+    .slogan { font-size: 12px; color: var(--text-light); }
+    .btn-primary {
+      background: var(--main-green);
+      color: #fff;
+      font-size: 14px;
+      padding: 9px 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    /* 中部：素材列表（壳，数据写死） */
+    main { flex: 1; padding: 12px 16px; }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-left: 17px;
+    }
+    .panel-head h2 { font-size: 14px; }
+    .list-count { font-size: 12px; color: var(--text-light); }
+    .material-list {
+      list-style: none;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .material-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .material-item:last-child { border-bottom: none; }
+    .m-icon { font-size: 18px; }
+    .m-name { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .m-size { font-size: 12px; color: var(--text-light); }
+    .m-loc {
+      font-size: 11px;
+      color: var(--text-light);
+      background: #f2f5f2;
+      padding: 3px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    /* API 状态区：今天写死「待接入」 */
+    .api-status {
+      margin-top: 16px;
+      padding: 14px 16px;
+      background: #eef3f0;
+      border: 1px dashed var(--main-green);
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.7;
+    }
+    .api-status b { color: var(--main-green); }
+    .api-status .tag {
+      display: inline-block;
+      background: #f0a020;
+      color: #fff;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-left: 6px;
+    }
+
+    /* 底部播放条（壳，不可用） */
+    footer.player-bar {
+      padding: 12px 16px;
+      background: var(--panel);
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    .ctl {
+      background: #eef3f0;
+      border: none;
+      border-radius: 50%;
+      font-size: 16px;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+    }
+    .ctl.big { width: 52px; height: 52px; font-size: 20px; background: var(--main-green); color: #fff; }
+
+    /* mock 标识条 */
+    .mock-banner {
+      background: #f0a020;
+      color: #fff;
+      text-align: center;
+      font-size: 12px;
+      padding: 6px 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- mock 标识：一眼看出这是演示版，不是真实数据 -->
+  <div class="mock-banner">星禾口语 · 前端 mock 版（Day 15）—— 静态托管验证页，数据为演示假数据</div>
+
+  <!-- 顶栏（壳，沿用 PWA 外观） -->
+  <header class="topbar">
+    <div class="topbar-title">
+      <span class="logo">🌾</span>
+      <div>
+        <h1>星禾口语</h1>
+        <p class="slogan">老师发的音视频，整理好慢慢听</p>
+      </div>
+    </div>
+    <button class="btn-primary">＋ 导入素材</button>
+  </header>
+
+  <!-- 素材列表（壳，假数据） -->
+  <main>
+    <div class="panel-head">
+      <h2>素材</h2>
+      <span class="list-count">3 个</span>
+    </div>
+    <ul class="material-list">
+      <li class="material-item">
+        <span class="m-icon">🎵</span>
+        <span class="m-name">Lesson 01 · 问候语精讲</span>
+        <span class="m-loc">高级班音频</span>
+        <span class="m-size">2.4 MB</span>
+      </li>
+      <li class="material-item">
+        <span class="m-icon">🎵</span>
+        <span class="m-name">Lesson 02 · 餐厅点餐对话</span>
+        <span class="m-loc">高级班音频</span>
+        <span class="m-size">3.1 MB</span>
+      </li>
+      <li class="material-item">
+        <span class="m-icon">🎬</span>
+        <span class="m-name">发音示范 · 元音对比</span>
+        <span class="m-loc">发音专题</span>
+        <span class="m-size">18.7 MB</span>
+      </li>
+    </ul>
+
+    <!-- API 状态：今天不接后端，写死「待接入」 -->
+    <div class="api-status">
+      <b>API 状态：待接入</b><span class="tag">Day 20 实装</span><br>
+      云函数 <b>/api/health</b> 已部署成功（公网可访问、返回 JSON），但前端调用它的跨域配置
+      按计划留到 Day 20 再做。届时这里会显示真实的接口返回。
+    </div>
+  </main>
+
+  <!-- 底部播放条（壳，不可用） -->
+  <footer class="player-bar">
+    <button class="ctl" title="快退 5 秒（mock 不可用）">⏪</button>
+    <button class="ctl big" title="播放 / 暂停（mock 不可用）">▶</button>
+    <button class="ctl" title="快进 5 秒（mock 不可用）">⏩</button>
+  </footer>
+
+</body>
+</html>
