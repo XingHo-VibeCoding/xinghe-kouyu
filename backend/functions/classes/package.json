@@ -1,0 +1,7 @@
+{
+  "name": "classes-api",
+  "version": "2.0.0",
+  "description": "GET /api/classes - 班级列表读接口（v2: HTTP API 网关版，无需第三方依赖）",
+  "main": "index.js",
+  "dependencies": {}
+}
