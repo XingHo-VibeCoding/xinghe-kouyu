@@ -49,6 +49,13 @@ dependencies:
   # compileSdk，13.x 要求 Flutter>=3.38（本机 3.47.5 满足），故升到最新版根治。
   file_picker: ^13.1.0
 
+  # 音频播放器：真播放/暂停/变速/seek，替代 PWA 的 <audio>
+  # 说明：just_audio 自带平台实现（ExoPlayer 等），无需额外系统依赖
+  just_audio: ^0.9.40
+
+  # 视频播放器：显示视频画面，替代 PWA 的 <video>
+  video_player: ^2.9.2
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8

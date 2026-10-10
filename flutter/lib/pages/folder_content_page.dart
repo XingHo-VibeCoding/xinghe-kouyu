@@ -13,25 +13,80 @@ import 'package:provider/provider.dart';
 
 import '../models/material_item.dart';
 import '../store/material_store.dart';
+import '../utils/sort_option.dart';
 import 'player_page.dart';
 
-class FolderContentPage extends StatelessWidget {
+class FolderContentPage extends StatefulWidget {
   const FolderContentPage({super.key, required this.folderId, required this.folderName});
 
   final int folderId; // 要浏览的根文件夹 id
   final String folderName; // 文件夹名（列表页已传进来）
 
   @override
+  State<FolderContentPage> createState() => _FolderContentPageState();
+}
+
+class _FolderContentPageState extends State<FolderContentPage> {
+  // 当前排序方式（默认「导入顺序」）。只是展示层状态，不写回数据库。
+  SortOption _sortOption = SortOption.importOrder;
+
+  @override
   Widget build(BuildContext context) {
     final MaterialStore store = context.watch<MaterialStore>();
-    // 只筛出「属于这个文件夹」的素材
-    final List<MaterialItem> items = store.items
-        .where((m) => m.folderId == folderId)
-        .toList();
+    // 只筛出「属于这个文件夹」的素材，再按用户选的排序方式排一遍
+    final List<MaterialItem> items = sortMaterials(
+      store.items.where((m) => m.folderId == widget.folderId).toList(),
+      _sortOption,
+    );
 
     return Scaffold(
       // 标题 = 文件夹名 + 素材数量，如「高级班音频 · 12」
-      appBar: AppBar(title: Text('$folderName · ${items.length}')),
+      appBar: AppBar(
+        title: Text('${widget.folderName} · ${items.length}'),
+        actions: <Widget>[
+          // 排序入口：和主列表页共用同一套排序逻辑与菜单样式
+          PopupMenuButton<SortOption>(
+            icon: const Icon(Icons.sort),
+            tooltip: '排序',
+            initialValue: _sortOption,
+            onSelected: (SortOption opt) {
+              setState(() => _sortOption = opt);
+            },
+            // 自定义菜单项（主题蓝勾 + 图标），和主列表页同款
+            itemBuilder: (BuildContext context) {
+              final Color primary = Theme.of(context).colorScheme.primary;
+              return SortOption.values.map((SortOption opt) {
+                final bool selected = opt == _sortOption;
+                return PopupMenuItem<SortOption>(
+                  value: opt,
+                  height: 48,
+                  child: Row(
+                    children: <Widget>[
+                      SizedBox(
+                        width: 28,
+                        child: selected
+                            ? Icon(Icons.check, size: 20, color: primary)
+                            : null,
+                      ),
+                      Icon(opt.icon, size: 20,
+                          color: selected ? primary : Colors.black45),
+                      const SizedBox(width: 10),
+                      Text(
+                        opt.label,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                          color: selected ? primary : const Color(0xFF333333),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList();
+            },
+          ),
+        ],
+      ),
       body: items.isEmpty
           ? _buildEmpty(context)
           : ListView.separated(
@@ -52,12 +107,12 @@ class FolderContentPage extends StatelessWidget {
         item.format == 'mp4' || item.format == 'mov' || item.format == 'webm';
     return Card(
       child: ListTile(
-        leading: Icon(
-          isVideo ? Icons.movie_outlined : Icons.audiotrack,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+        leading: _mediaBadge(context, isVideo),
         title: Text(item.title),
-        subtitle: Text(_subtitle(item)),
+        subtitle: Text(
+          _subtitle(item),
+          style: const TextStyle(fontSize: 12, color: Colors.black54),
+        ),
         trailing: const Icon(Icons.chevron_right),
         // 长按：弹出操作菜单（重命名 / 移动 / 删除）
         onLongPress: () => _showItemMenu(context, store, item),
@@ -66,10 +121,27 @@ class FolderContentPage extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => PlayerPage(item: item, folderName: folderName),
+              builder: (_) => PlayerPage(item: item, folderName: widget.folderName),
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// 素材类型徽章：圆角彩色底 + 白图标（和列表页保持一致）
+  Widget _mediaBadge(BuildContext context, bool isVideo) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(
+        isVideo ? Icons.movie_outlined : Icons.audiotrack,
+        color: Colors.white,
+        size: 22,
       ),
     );
   }

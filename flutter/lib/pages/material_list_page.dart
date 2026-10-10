@@ -7,12 +7,21 @@ import 'package:provider/provider.dart';
 
 import '../models/material_item.dart';
 import '../store/material_store.dart';
+import '../utils/sort_option.dart';
 import 'folder_manage_page.dart';
 import 'folder_content_page.dart';
 import 'player_page.dart';
 
-class MaterialListPage extends StatelessWidget {
+class MaterialListPage extends StatefulWidget {
   const MaterialListPage({super.key});
+
+  @override
+  State<MaterialListPage> createState() => _MaterialListPageState();
+}
+
+class _MaterialListPageState extends State<MaterialListPage> {
+  // 当前排序方式（默认「导入顺序」= id 升序）。只是展示层状态，不写回数据库。
+  SortOption _sortOption = SortOption.importOrder;
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +32,8 @@ class MaterialListPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text('星禾口语'),
         actions: <Widget>[
+          // 排序入口：点开弹出四选一菜单
+          _buildSortButton(store),
           // 入口 1：去「文件夹管理」页（Navigator.push 压栈，新页自带返回箭头）
           IconButton(
             icon: const Icon(Icons.folder_copy_outlined),
@@ -119,7 +130,8 @@ class MaterialListPage extends StatelessWidget {
   /// 状态④：正常有数据 —— 素材卡片列表，点某条进「播放页」
   /// 传入 store，是为了拿「文件夹名」（folderId → 名字）并传给播放页
   Widget _buildList(BuildContext context, MaterialStore store) {
-    final List<MaterialItem> items = store.items;
+    // 先按用户选的排序方式排一遍，再渲染（纯展示层，不改数据库原始顺序）
+    final List<MaterialItem> items = sortMaterials(store.items, _sortOption);
     return ListView.separated(
       padding: const EdgeInsets.all(12),
       itemCount: items.length,
@@ -130,12 +142,13 @@ class MaterialListPage extends StatelessWidget {
             item.format == 'mp4' || item.format == 'mov' || item.format == 'webm';
         return Card(
           child: ListTile(
-            leading: Icon(
-              isVideo ? Icons.movie_outlined : Icons.audiotrack,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+            leading: _mediaBadge(context, isVideo),
             title: Text(item.title),
-            subtitle: Text(_materialSubtitle(store, item)),
+            subtitle: Text(
+              _materialSubtitle(store, item),
+              // 副标题降级为中性灰小字，和标题拉开层级
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
             trailing: const Icon(Icons.chevron_right),
             // 长按：弹出操作菜单（重命名 / 移动 / 删除），和浏览页一致
             onLongPress: () => _showItemMenu(context, store, item),
@@ -153,6 +166,53 @@ class MaterialListPage extends StatelessWidget {
             },
           ),
         );
+      },
+    );
+  }
+
+  /// 排序入口按钮：AppBar 上的排序图标，点开弹出「四选一」菜单
+  Widget _buildSortButton(MaterialStore store) {
+    return PopupMenuButton<SortOption>(
+      icon: const Icon(Icons.sort),
+      tooltip: '排序',
+      // 当前选中的排序项打勾
+      initialValue: _sortOption,
+      onSelected: (SortOption opt) {
+        setState(() => _sortOption = opt);
+      },
+      // 自定义菜单项（不用默认的 CheckedPopupMenuItem——它的勾是灰色、
+      // 和主题脱节）。这里用主题蓝的勾 + 每项自己的图标，视觉统一。
+      itemBuilder: (BuildContext context) {
+        final Color primary = Theme.of(context).colorScheme.primary;
+        return SortOption.values.map((SortOption opt) {
+          final bool selected = opt == _sortOption;
+          return PopupMenuItem<SortOption>(
+            value: opt,
+            height: 48,
+            child: Row(
+              children: <Widget>[
+                // 选中列：固定宽度放勾，未选中时占位透明，保持文字对齐
+                SizedBox(
+                  width: 28,
+                  child: selected
+                      ? Icon(Icons.check, size: 20, color: primary)
+                      : null,
+                ),
+                Icon(opt.icon, size: 20,
+                    color: selected ? primary : Colors.black45),
+                const SizedBox(width: 10),
+                Text(
+                  opt.label,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    color: selected ? primary : const Color(0xFF333333),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList();
       },
     );
   }
@@ -193,6 +253,23 @@ class MaterialListPage extends StatelessWidget {
   /// 演示阶段的占位提示：诚实地告诉用户这个功能还没接入
   void _showDemoTip(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// 素材类型徽章：圆角彩色底 + 白图标，比裸线条图标更有质感、更易扫读
+  Widget _mediaBadge(BuildContext context, bool isVideo) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(
+        isVideo ? Icons.movie_outlined : Icons.audiotrack,
+        color: Colors.white,
+        size: 22,
+      ),
+    );
   }
 
   /// 拼接素材卡片的副标题：「文件夹 · 格式 · 时长」。
