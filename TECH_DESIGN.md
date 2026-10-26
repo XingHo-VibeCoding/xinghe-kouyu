@@ -1,8 +1,8 @@
 # 星禾口语 · 技术设计（TECH_DESIGN）
 
-> 版本：v3.0（Day 18，技术路线由 PWA 切为 Flutter 独立 App）｜ 上游文档：PRD.md（Day 4 起）、research.md（Day 3）｜ 范围：Day 7 MVP「一心复读机 promax」
+> 版本：v4.0（Day 20，新增班级管理 MVP 的技术方案：CloudBase 后端 + 四表数据模型 + 离线优先同步）｜ 上游文档：PRD.md、api-contract.md｜ 范围：Day 7 MVP「一心复读机 promax」+ Day 20 班级管理 MVP
 >
-> **v3.0 变更记录**：应 Day 13 产品方向调整（Flutter 独立 App 落地，applicationId `com.xinghe.kouyu`），技术路线由「PWA + IndexedDB」改为「**Flutter + sqflite 本地库**」。核心原则（离线优先、无后端）不变，仅载体与存储从浏览器技术栈迁移到 Flutter 技术栈。
+> **v4.0 变更记录**：产品进入「离线优先双状态」阶段。原 v3.0 是纯本地（无后端）；本版新增后端——CloudBase（SQL 基础数据库 + 云存储 + 匿名登录 + HTTP API 网关），用于班级管理。播放器（F1–F9）仍是纯本地、无后端，两者边界清晰。
 
 ## 1. 技术路线
 
@@ -42,13 +42,14 @@
 
 | 角色 | 本项目的安排 | 说明 |
 |---|---|---|
-| 前端 | **星禾口语应用（唯一角色，Dart 代码）** | 素材导入、应用内文件夹管理、播放/变速/AB 复读、位置记忆，全部由 App 本地完成 |
-| 后端 | **无** | MVP 不设后端。没有服务器，所以没有广告位（F7 天然成立），数据也无处可去 |
-| 应用存储 | **sqflite（SQLite）充当本地数据库** | 存三样东西：**素材元数据**（含文件路径、时长）、**应用内文件夹结构**、**播放位置记录**；素材文件本体另存 App 私有目录 |
+| 前端 | **星禾口语应用（Dart 代码）** | 播放器（素材导入、文件夹管理、播放/变速/AB 复读、位置记忆）纯本地；班级管理（列表/详情/下载）调后端云函数 |
+| 后端 | **CloudBase（Day 20 新增）** | 班级管理的数据中枢：SQL 基础数据库（存班级/成员/文件元数据）+ 云存储（存文件本体）+ 匿名登录（发通行证）+ HTTP API 网关（PostgREST 查表） |
+| 应用存储 | **sqflite（SQLite）本地数据库** | 存三样：素材元数据、文件夹结构、播放位置；班级文件下载后也注册进本地库 |
+| 云端存储 | **CloudBase SQL 数据库 + 云存储** | 班级/成员/文件元数据落 SQL；音视频文件本体落云存储 |
 
 **这个分工的直接后果**：
-- A8「页面加载后断网，全功能可用」成立——素材副本就在本机，一切不依赖网络；
-- 远期扩展功能（班级管理、实时字幕统计、汇报老师）全部需要后端（多人的数据要汇到一处）——这正是它们被划入「本期不做」的技术根源。
+- A8「断网全功能可用」对**播放器**成立；班级管理是有网才有、没网降级隐藏，两者互不拖累；
+- 班级管理需要后端，是因为「老师发文件」是**跨用户共享**——数据必须汇到云端一处，这不是播放器阶段能解决的，正是 Day 20 引入后端的技术根源。
 
 ## 3. 数据流
 
@@ -68,3 +69,82 @@
 
 - 桌面端打包：sqflite 的 Windows 版依赖 sqlite3 下载被墙，需另找方案后再支持；
 - 多端同步 / 班级管理：需要引入后端（届时同步修订本文件与 PRD 不做清单）。
+
+## 6. 班级管理 MVP 技术方案（Day 20 新增）
+
+### 6.1 云端四表数据模型
+
+> 建在 CloudBase「SQL 基础数据库」的 public schema，通过 HTTP API 网关（PostgREST）访问。字段为 MVP 最小集，后续可扩展。
+
+**① `users`（用户）**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | text PK | 匿名登录返回的 uid（设备标识，非真用户身份） |
+| `nickname` | text | 昵称（首次进入填写） |
+| `role` | text | `teacher` / `student` |
+
+**② `classes`（班级）**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | text PK | 班级 id（uuid） |
+| `name` | text | 班级名 |
+| `code` | text UNIQUE | 班级码（加入凭证，唯一） |
+| `teacher_id` | text | 建班老师 uid（外键 users.id） |
+| `created_at` | timestamp | 建班时间 |
+
+**③ `class_members`（班级成员）**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | serial PK | 自增 |
+| `class_id` | text | 班级 id（外键） |
+| `user_id` | text | 成员 uid（外键） |
+| `role` | text | 该成员在班内的角色（`teacher`/`student`） |
+| `joined_at` | timestamp | 加入时间 |
+
+> 唯一约束：`(class_id, user_id)`，防重复加入。
+
+**④ `class_files`（班级文件元数据）**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `id` | text PK | 文件记录 id（uuid） |
+| `class_id` | text | 所属班级（外键） |
+| `title` | text | 展示名 |
+| `cloud_path` | text | 云存储里的文件路径（下载凭证来源） |
+| `size` | bigint | 字节数 |
+| `format` | text | mp3/mp4 等 |
+| `uploader_id` | text | 上传者 uid |
+| `created_at` | timestamp | 上传时间 |
+
+### 6.2 云函数（接口清单）
+
+> 对应 api-contract.md，走 HTTP API 网关（PostgREST），Bearer token 鉴权，匿名登录必带 `x-device-id` 头。详见 api-contract 第 3 节。
+
+| 功能 | 说明 |
+|---|---|
+| 建班 | 生成 uuid + 唯一班级码 → 写 `classes` + 老师入 `class_members` |
+| 加入班级 | 按班级码查 `classes` → 校验 → 写 `class_members` |
+| 班级列表 | 按当前用户查其 `class_members` → 联查 `classes` |
+| 班级成员 | 查某班全部 `class_members` → 联查 `users` |
+| 上传文件 | 文件本体传云存储，元数据写 `class_files` |
+| 班级文件列表 | 查某班 `class_files` |
+| 下载凭证 | 按 `cloud_path` 换取云存储临时下载 URL |
+
+### 6.3 离线优先同步策略
+
+- **本地为主、云端同步**：班级文件下载后落本地 `materials/` + 注册进 sqflite，此后播放走本地（离线可用，对应 A13）。
+- **联网监听**：用 `connectivity_plus` 监听有网/没网，据此显示/隐藏「班级」入口。
+- **同步时机**：有网时拉班级/文件列表；下载文件是显式动作，不自动全量同步（省流量、可控）。
+- **已知难点（后置，本期不做）**：本地改动与云端同时变更的冲突合并（如打卡重复提交）。
+
+### 6.4 新增技术栈
+
+| 用途 | 选型 |
+|---|---|
+| 联网监听 | connectivity_plus |
+| HTTP 请求 | dio（或 http） |
+| 匿名登录 / 鉴权 | CloudBase 匿名登录（换 token） |
+| 云存储上传下载 | CloudBase 存储 SDK / 临时 URL |

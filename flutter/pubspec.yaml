@@ -56,6 +56,16 @@ dependencies:
   # 视频播放器：显示视频画面，替代 PWA 的 <video>
   video_player: ^2.9.2
 
+  # 本地键值存储：存设备身份 uid、昵称、角色（班级管理 MVP 的身份层）
+  shared_preferences: ^2.3.2
+
+  # HTTP 客户端：调后端云函数接口（登记身份/建班/加入/班级列表）
+  http: ^1.2.2
+
+  # 桌面端（Windows/Linux/macOS）跑 sqflite 需要 FFI 数据库工厂
+  # （安卓/iOS 走 sqflite 官方插件，不需要这个）
+  sqflite_common_ffi: ^2.4.4
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
@@ -70,6 +80,17 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+# 构建钩子配置：让 sqlite3 包在 Windows 上不下载预编译 dll（GitHub 被墙），
+# 改用系统自带的 winsqlite3.dll（Windows 10/11 内置）。安卓/iOS 不受影响。
+hooks:
+  user_defines:
+    sqlite3:
+      source:
+        windows: system
+        default: sqlite3
+      name:
+        windows: winsqlite3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

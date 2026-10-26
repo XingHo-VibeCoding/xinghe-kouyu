@@ -1,9 +1,13 @@
 // ============================================================
-// GET /api/users —— 用户列表读接口（星禾口语 · Day 17 v2）
+// /api/users —— 用户接口（星禾口语 · Day 20 v3，班级管理 MVP）
 // ------------------------------------------------------------
-// v2 变更：pg 直连 → CloudBase HTTP API 网关（原因见 classes/index.js）。
-// 支持可选参数 ?role=teacher / ?role=student。
-// 只查 id/name/role/created_at 四个字段，永不返回密码类字段。
+// v3 变更：
+//   1. 支持两种方法：
+//      GET  ?role=teacher/student      → 用户列表（可选按角色过滤）
+//      POST { uid, nickname, role }    → 登记身份（首次进入填昵称+角色）
+//   2. 表结构换 v2：users.id 是匿名登录 uid（文本）、name → nickname
+//   3. 登记是「upsert」：同一个 uid 再登记就更新昵称/角色，不报错
+//      （用 PostgREST 的 on_conflict=id + resolution=merge-duplicates）
 // 环境变量：ENV_ID = 云开发环境 ID。
 // ============================================================
 
@@ -32,7 +36,7 @@ function request(url, options = {}, body = null) {
   });
 }
 
-// 设备 ID：匿名登录必填的请求头（平台用来区分不同匿名用户）。
+// 设备 ID：云函数作为服务端匿名登录时的固定标识（查表管理员通行证）
 const DEVICE_ID = 'xinghe-cloudfunction-server';
 
 async function getToken() {
@@ -62,25 +66,87 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    const params = new URL(req.url, 'http://localhost').searchParams;
-    const role = params.get('role'); // teacher / student
+    // ---------- GET：用户列表（可选按角色过滤） ----------
+    if (req.method === 'GET') {
+      const params = new URL(req.url, 'http://localhost').searchParams;
+      const role = params.get('role'); // teacher / student
 
-    let url = `${GATEWAY}/v1/rdb/rest/users?select=id,name,role,created_at&order=id.asc`;
-    if (role === 'teacher' || role === 'student') {
-      url += `&role=eq.${role}`;
+      let url = `${GATEWAY}/v1/rdb/rest/users?select=id,nickname,role,created_at&order=id.asc`;
+      if (role === 'teacher' || role === 'student') {
+        url += `&role=eq.${role}`;
+      }
+
+      const token = await getToken();
+      const result = await request(url, {
+        method: 'GET',
+        headers: { Authorization: 'Bearer ' + token },
+      });
+
+      if (result.status !== 200) {
+        throw new Error('查询 users 失败: HTTP ' + result.status + ' ' + JSON.stringify(result.body));
+      }
+
+      res.end(JSON.stringify({ code: 0, message: 'ok', data: result.body }));
+      return;
     }
 
-    const token = await getToken();
-    const result = await request(url, {
-      method: 'GET',
-      headers: { Authorization: 'Bearer ' + token },
-    });
+    // ---------- POST：登记身份（upsert） ----------
+    if (req.method === 'POST') {
+      let reqBody = '';
+      req.on('data', (c) => { reqBody += c; });
+      req.on('end', async () => {
+        let payload = {};
+        try { payload = JSON.parse(reqBody || '{}'); } catch (e) { /* 空体 */ }
 
-    if (result.status !== 200) {
-      throw new Error('查询 users 失败: HTTP ' + result.status + ' ' + JSON.stringify(result.body));
+        const uid = (payload.uid || '').trim();
+        const nickname = (payload.nickname || '').trim();
+        const role = (payload.role || '').trim();
+
+        // 参数校验
+        if (!uid) {
+          res.end(JSON.stringify({ code: 4000, message: '缺少 uid（匿名登录返回的用户 id）', data: {} }));
+          return;
+        }
+        if (!nickname) {
+          res.end(JSON.stringify({ code: 4000, message: '缺少昵称 nickname', data: {} }));
+          return;
+        }
+        if (role !== 'teacher' && role !== 'student') {
+          res.end(JSON.stringify({ code: 4000, message: 'role 必须是 teacher 或 student', data: {} }));
+          return;
+        }
+
+        const token = await getToken();
+        // upsert：id 冲突时更新 nickname/role（同一设备重复登记不报错）
+        const result = await request(
+          `${GATEWAY}/v1/rdb/rest/users?on_conflict=id`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer ' + token,
+              'Content-Type': 'application/json',
+              Prefer: 'resolution=merge-duplicates,return=representation',
+            },
+          },
+          JSON.stringify({ id: uid, nickname, role })
+        );
+
+        if (result.status !== 201 && result.status !== 200) {
+          res.end(JSON.stringify({
+            code: 5004,
+            message: '登记身份失败: HTTP ' + result.status + ' ' + JSON.stringify(result.body),
+            data: {},
+          }));
+          return;
+        }
+
+        res.end(JSON.stringify({ code: 0, message: 'ok', data: result.body[0] || {} }));
+      });
+      return;
     }
 
-    res.end(JSON.stringify({ code: 0, message: 'ok', data: result.body }));
+    // 其他方法不支持
+    res.end(JSON.stringify({ code: 4006, message: '不支持的请求方法: ' + req.method, data: {} }));
   } catch (err) {
     res.end(JSON.stringify({
       code: 5000,

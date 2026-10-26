@@ -1,48 +1,30 @@
 -- ============================================================
--- 星禾口语 · 种子数据脚本（Day 16）
+-- 星禾口语 · 种子数据脚本 v2（Day 20，配合 schema.sql v2）
 -- 要求：可复现——「先清空、再插入」，每次执行都重置成完全一样的示例数据。
---       因此重复执行不会报错、也不会累积重复行。
+-- ⚠️ 注意：users.id 现在是匿名登录 uid（文本）。真实使用中 uid 由前端匿名
+--    登录产生；种子数据里用假 uid 仅作开发联调用。
 -- ============================================================
 
--- 第一步：清空四张表（先子表后父表，避免外键拦截；RESTART IDENTITY 让 id 从 1 重来）
-TRUNCATE TABLE materials, class_members, classes, users RESTART IDENTITY CASCADE;
+-- 先清空（顺序：先子表后父表，避免外键约束报错）
+DELETE FROM class_files;
+DELETE FROM class_members;
+DELETE FROM classes;
+DELETE FROM users;
 
--- 第二步：重新插入示例数据（每张核心表 ≥ 5 行）
+-- 用户（假 uid 模拟两台设备的匿名登录结果）
+INSERT INTO users (id, nickname, role) VALUES
+  ('dev-uid-teacher-01', '王老师', 'teacher'),
+  ('dev-uid-student-01', '小明', 'student');
 
--- 用户：2 位老师 + 5 位学生（共 7 行）
-INSERT INTO users (name, role) VALUES
-    ('王老师', 'teacher'),
-    ('李老师', 'teacher'),
-    ('张三',   'student'),
-    ('李四',   'student'),
-    ('王五',   'student'),
-    ('赵六',   'student'),
-    ('孙七',   'student');
+-- 班级（班级码固定，方便联调）
+INSERT INTO classes (id, name, code, teacher_id) VALUES
+  ('dev-class-01', '高级班音频', 'XH7K2M', 'dev-uid-teacher-01');
 
--- 班级：5 个班，由两位老师创建（teacher_id 对应上面 users 的自增 id）
-INSERT INTO classes (name, teacher_id) VALUES
-    ('高级班', 1),
-    ('中级班', 1),
-    ('影视班', 1),
-    ('中级班', 2),
-    ('影视班', 2);
+-- 成员（老师 + 学生都在班里）
+INSERT INTO class_members (class_id, user_id, role) VALUES
+  ('dev-class-01', 'dev-uid-teacher-01', 'teacher'),
+  ('dev-class-01', 'dev-uid-student-01', 'student');
 
--- 班级成员：把 5 位学生分到各班（共 7 条关系；王五同时加了高级班和中级班）
-INSERT INTO class_members (class_id, user_id) VALUES
-    (1, 3),
-    (1, 4),
-    (2, 5),
-    (2, 6),
-    (3, 7),
-    (4, 7),
-    (1, 5);
-
--- 资源：老师发到各班的音视频（共 7 行，覆盖 5 个班）
-INSERT INTO materials (class_id, title, file_url) VALUES
-    (1, 'Lesson 01 · 问候语精讲', 'https://example.com/materials/lesson01.mp3'),
-    (1, 'Lesson 02 · 餐厅点餐对话', 'https://example.com/materials/lesson02.mp3'),
-    (2, 'Lesson 03 · 自我介绍',     'https://example.com/materials/lesson03.mp3'),
-    (2, 'Lesson 04 · 发音对比',     'https://example.com/materials/lesson04.mp4'),
-    (3, 'Lesson 05 · 字母表',       'https://example.com/materials/lesson05.mp3'),
-    (4, 'Lesson 06 · 数字发音',     'https://example.com/materials/lesson06.mp3'),
-    (5, 'Lesson 07 · 情景对话练习', 'https://example.com/materials/lesson07.mp3');
+-- 班级文件（cloud_path 是云存储里的路径，此处为占位演示）
+INSERT INTO class_files (id, class_id, title, cloud_path, size, format, uploader_id) VALUES
+  ('dev-file-01', 'dev-class-01', '第1课 跟读', 'class-files/demo-01.mp3', 2048000, 'mp3', 'dev-uid-teacher-01');

@@ -9,7 +9,6 @@ import '../models/material_item.dart';
 import '../store/material_store.dart';
 import '../utils/sort_option.dart';
 import 'folder_manage_page.dart';
-import 'folder_content_page.dart';
 import 'player_page.dart';
 
 class MaterialListPage extends StatefulWidget {
@@ -54,8 +53,6 @@ class _MaterialListPageState extends State<MaterialListPage> {
         ListStatus.error => _buildError(context, store),
         ListStatus.data => _buildList(context, store),
       },
-      // 开发用状态预览条（临时，上线前删）
-      bottomNavigationBar: _buildDevStateBar(store),
       // 常驻「导入」悬浮按钮：有数据/空状态都能导，避免「导入第一条后入口消失」的断点
       floatingActionButton: FloatingActionButton(
         onPressed: () => _startImport(context),
@@ -214,39 +211,6 @@ class _MaterialListPageState extends State<MaterialListPage> {
           );
         }).toList();
       },
-    );
-  }
-
-  /// 底部状态预览条【开发用临时工具，上线前删除】
-  /// 点按钮直接把列表拨到对应状态，方便逐个截图验收
-  Widget _buildDevStateBar(MaterialStore store) {
-    return Container(
-      color: Colors.grey.shade100,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: <Widget>[
-            const Text('状态预览（开发用）：', style: TextStyle(fontSize: 12, color: Colors.black54)),
-            TextButton(
-              onPressed: () => store.preview(ListStatus.loading),
-              child: const Text('加载中'),
-            ),
-            TextButton(
-              onPressed: () => store.preview(ListStatus.empty),
-              child: const Text('空'),
-            ),
-            TextButton(
-              onPressed: () => store.preview(ListStatus.error),
-              child: const Text('出错'),
-            ),
-            TextButton(
-              onPressed: () => store.preview(ListStatus.data),
-              child: const Text('有数据'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
