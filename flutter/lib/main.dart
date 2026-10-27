@@ -13,6 +13,7 @@ import 'pages/home_shell.dart';
 import 'store/class_store.dart';
 import 'store/material_store.dart';
 import 'store/user_store.dart';
+import 'utils/design_tokens.dart';
 
 void main() {
   // 桌面端（Windows/Linux/macOS）没有 sqflite 官方插件自带的 SQLite 引擎，
@@ -62,50 +63,56 @@ class XingheApp extends StatelessWidget {
       child: MaterialApp(
         title: '星禾口语',
         theme: ThemeData(
-          // 品牌色系（Day 20 视觉对齐「学在重邮」）：青绿主色、米白灰底
-          //   primary 青绿 #2BC8B7：按钮、选中态、下划线等主强调
-          //   页面底色 #F4F6F8 浅灰：卡片浮在上面
+          // 品牌色系（Day 23 视觉升级）：青绿主色 + 珊瑚橙强调 + 暖白底
           colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF2BC8B7),
-            surface: const Color(0xFFF4F6F8),
+            seedColor: kTeal,
+            surface: kBg,
           ),
-          // 让卡片、对话框等表面统一用白色
-          cardTheme: const CardThemeData(
-            color: Color(0xFFFFFFFF),
+          // 卡片统一白色 + 淡青描边 + 圆角（所有 Card 组件自动生效）
+          cardTheme: CardThemeData(
+            color: kCard,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(kRadiusCard),
+              side: const BorderSide(color: kBorder),
+            ),
           ),
-          scaffoldBackgroundColor: const Color(0xFFF4F6F8),
+          scaffoldBackgroundColor: kBg,
           // FAB：青绿底白字
           floatingActionButtonTheme: const FloatingActionButtonThemeData(
-            backgroundColor: Color(0xFF2BC8B7),
+            backgroundColor: kTeal,
             foregroundColor: Colors.white,
           ),
           // chip 统一青绿系
           chipTheme: ChipThemeData(
-            backgroundColor: const Color(0xFFFFFFFF),
-            selectedColor: const Color(0xFFDFF5F2),
-            side: BorderSide(color: const Color(0xFF2BC8B7).withValues(alpha: 0.35)),
+            backgroundColor: kCard,
+            selectedColor: kTealSoft,
+            side: BorderSide(color: kTeal.withValues(alpha: 0.35)),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(kRadiusBtn),
             ),
           ),
-          // 弹出菜单（排序选择等）：默认样式是灰色块，和米色主题脱节，
-          // 统一改成白底圆角卡片风格，和素材卡片同一视觉语言
+          // 弹出菜单：白底圆角卡片风格
           popupMenuTheme: PopupMenuThemeData(
-            color: const Color(0xFFFFFFFF),
-            // 关键：去掉 Material 3 默认的选中项灰色高亮带（surface tint）。
-            // 不设这行，选中项背后会有一层灰底，和绿字叠加显脏。
+            color: kCard,
             surfaceTintColor: Colors.transparent,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: BorderSide(color: const Color(0xFF6BBF8A).withValues(alpha: 0.15)),
+              side: BorderSide(color: kBorder),
             ),
             elevation: 8,
             shadowColor: Colors.black.withValues(alpha: 0.15),
-            // 菜单项文字默认色
-            textStyle: const TextStyle(color: Color(0xFF333333), fontSize: 15),
+            textStyle: const TextStyle(color: kTextPrimary, fontSize: kFontBody),
+          ),
+          // 全局文字主题：统一主文字色（后续页面可直接用默认色，不用到处写死）
+          textTheme: const TextTheme(
+            bodyMedium: TextStyle(color: kTextPrimary),
+            bodySmall: TextStyle(color: kTextSecondary),
           ),
         ),
-        // 首页 = 底部导航壳（首页|班级|作业|我的）
+        // 首页 = 底部导航壳（首页|班级|播放|我的）
         home: const HomeShell(),
       ),
     );

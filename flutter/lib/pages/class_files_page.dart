@@ -19,6 +19,7 @@ import '../net/api_client.dart';
 import '../net/tcb_service.dart';
 import '../store/material_store.dart';
 import '../store/user_store.dart';
+import '../utils/design_tokens.dart';
 
 class ClassFilesPage extends StatefulWidget {
   final String classId;
@@ -36,7 +37,7 @@ class ClassFilesPage extends StatefulWidget {
 
 class _ClassFilesPageState extends State<ClassFilesPage> {
   // 品牌青绿（学在重邮同款）
-  static const Color teal = Color(0xFF2BC8B7);
+  
 
   bool _loading = true;
   String? _error;
@@ -164,7 +165,7 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
     final bool isTeacher = userStore.role == UserRole.teacher;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F8),
+      backgroundColor: kBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF333333),
@@ -197,7 +198,7 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    const CircularProgressIndicator(color: teal),
+                    const CircularProgressIndicator(color: kTeal),
                     const SizedBox(height: 12),
                     Text(
                       _uploading ? '正在上传…' : '正在下载…',
@@ -214,7 +215,7 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: teal));
+      return const Center(child: CircularProgressIndicator(color: kTeal));
     }
     if (_error != null) {
       return Center(
@@ -232,7 +233,7 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: teal),
+              style: FilledButton.styleFrom(backgroundColor: kTeal),
               onPressed: _load,
               icon: const Icon(Icons.refresh),
               label: const Text('重试'),
@@ -261,12 +262,14 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
   Widget _fileCard(ClassFile f) {
     return InkWell(
       onTap: () => _downloadAndPlay(f),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(kRadiusCard),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          color: kCard,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: kCardBorder,
+          boxShadow: kShadowSm,
         ),
         child: Row(
           children: <Widget>[
@@ -275,7 +278,7 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: f.isVideo ? const Color(0xFF8FB8D8) : teal,
+                color: f.isVideo ? const Color(0xFF8FB8D8) : kTeal,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(

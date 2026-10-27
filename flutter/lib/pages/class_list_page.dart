@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import '../models/class_item.dart';
 import '../store/class_store.dart';
 import '../store/user_store.dart';
+import '../utils/design_tokens.dart';
 import 'class_detail_page.dart';
 
 class ClassListPage extends StatefulWidget {
@@ -23,9 +24,6 @@ class ClassListPage extends StatefulWidget {
 }
 
 class _ClassListPageState extends State<ClassListPage> {
-  // 品牌青绿（学在重邮同款）
-  static const Color teal = Color(0xFF2BC8B7);
-
   // 当前选中的 tab：0 = 我的班级，1 = 公开课
   int _tabIndex = 0;
 
@@ -49,7 +47,7 @@ class _ClassListPageState extends State<ClassListPage> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F8),
+      backgroundColor: kBg,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,7 +172,7 @@ class _ClassListPageState extends State<ClassListPage> {
             width: 24,
             height: 3,
             decoration: BoxDecoration(
-              color: selected ? teal : Colors.transparent,
+              color: selected ? kTeal : Colors.transparent,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -194,7 +192,7 @@ class _ClassListPageState extends State<ClassListPage> {
   Widget _buildBody(BuildContext context, ClassStore store) {
     return switch (store.status) {
       ClassListStatus.loading =>
-        const Center(child: CircularProgressIndicator(color: teal)),
+        const Center(child: CircularProgressIndicator(color: kTeal)),
       ClassListStatus.empty => _buildEmpty(context),
       ClassListStatus.error => _buildError(context, store),
       ClassListStatus.data => _buildList(context, store),
@@ -216,7 +214,7 @@ class _ClassListPageState extends State<ClassListPage> {
               style: TextStyle(fontSize: 13, color: Color(0xFF999999))),
           const SizedBox(height: 16),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: teal),
+            style: FilledButton.styleFrom(backgroundColor: kTeal),
             onPressed: () => _showEntryMenu(context),
             icon: const Icon(Icons.add),
             label: const Text('建班 / 加入'),
@@ -242,7 +240,7 @@ class _ClassListPageState extends State<ClassListPage> {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: teal),
+            style: FilledButton.styleFrom(backgroundColor: kTeal),
             onPressed: () => store.load(context.read<UserStore>().uid),
             icon: const Icon(Icons.refresh),
             label: const Text('重试'),
@@ -255,7 +253,7 @@ class _ClassListPageState extends State<ClassListPage> {
   /// 班级卡片列表（课程页风格）
   Widget _buildList(BuildContext context, ClassStore store) {
     return RefreshIndicator(
-      color: teal,
+      color: kTeal,
       onRefresh: () => store.load(context.read<UserStore>().uid),
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -281,8 +279,10 @@ class _ClassListPageState extends State<ClassListPage> {
       child: Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: kCard,
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: kCardBorder,
+        boxShadow: kShadowSm,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -424,7 +424,7 @@ class _ClassListPageState extends State<ClassListPage> {
         actions: <Widget>[
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: teal),
+            style: FilledButton.styleFrom(backgroundColor: kTeal),
             onPressed: () => Navigator.pop(ctx, controller.text),
             child: const Text('创建'),
           ),
@@ -463,7 +463,7 @@ class _ClassListPageState extends State<ClassListPage> {
         actions: <Widget>[
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: teal),
+            style: FilledButton.styleFrom(backgroundColor: kTeal),
             onPressed: () => Navigator.pop(ctx, controller.text),
             child: const Text('加入'),
           ),

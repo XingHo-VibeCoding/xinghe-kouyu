@@ -1,12 +1,13 @@
 // =====================================================================
-// 底部导航壳（App 主框架，四栏切换）—— 1:1 复刻「学在重邮」底部导航
+// 底部导航壳（App 主框架，四栏切换）
 // ---------------------------------------------------------------------
 // 结构：IndexedStack 装四个页面（切 tab 不丢状态）+ 自绘底部导航条
-//       （首页 | 班级 | 作业[99+ 角标] | 我的，选中态青绿）。
+//       （首页 | 班级 | 播放 | 我的，选中态青绿胶囊 + 填充图标）
 // =====================================================================
 
 import 'package:flutter/material.dart';
 
+import '../utils/design_tokens.dart';
 import 'class_list_page.dart';
 import 'home_page.dart';
 import 'material_list_page.dart';
@@ -20,10 +21,6 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  // 品牌青绿（学在重邮同款）
-  static const Color teal = Color(0xFF2BC8B7);
-  static const Color badgeRed = Color(0xFFF86C6C);
-
   int _index = 0;
 
   static const List<Widget> _pages = <Widget>[
@@ -42,17 +39,17 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
-  /// 自绘底部导航条：白底 + 四个 item（图标 + 文字，选中青绿）
+  /// 自绘底部导航条：白底 + 四个 item（选中态 = 青绿胶囊 + 填充图标）
   Widget _buildBottomNav() {
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFEEEEEE))),
+        color: kCard,
+        border: Border(top: BorderSide(color: kBorder)),
       ),
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 60,
+          height: 64,
           child: Row(
             children: <Widget>[
               Expanded(child: _navItem(0, Icons.home_filled, '首页')),
@@ -67,51 +64,40 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
-  /// 单个导航 item
-  Widget _navItem(int index, IconData icon, String label, {String? badge}) {
+  /// 单个导航 item：选中态 = 青绿浅底胶囊 + 实心图标 + 加粗文字
+  Widget _navItem(int index, IconData icon, String label) {
     final bool selected = _index == index;
-    final Color color = selected ? teal : const Color(0xFF999999);
     return GestureDetector(
       onTap: () => setState(() => _index = index),
       behavior: HitTestBehavior.opaque,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          // 图标 + 可选角标
-          Stack(
-            clipBehavior: Clip.none,
-            children: <Widget>[
-              Icon(icon, size: 26, color: color),
-              if (badge != null)
-                Positioned(
-                  top: -6,
-                  right: -14,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: badgeRed,
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                    constraints: const BoxConstraints(minWidth: 18),
-                    child: Text(
-                      badge,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontSize: 10, color: Colors.white, height: 1.4),
-                    ),
-                  ),
-                ),
-            ],
+          // 选中态：青绿浅底胶囊包住图标，形成「被点亮」的聚焦感
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            width: 44,
+            height: 30,
+            decoration: BoxDecoration(
+              color: selected ? kTealSoft : Colors.transparent,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Icon(
+              icon,
+              size: 22,
+              color: selected ? kTeal : kTextHint,
+            ),
           ),
           const SizedBox(height: 3),
-          Text(
-            label,
+          AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 200),
             style: TextStyle(
-              fontSize: 12,
-              fontWeight: selected ? FontWeight.bold : FontWeight.w400,
-              color: color,
+              fontSize: kFontCaption,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+              color: selected ? kTeal : kTextHint,
             ),
+            child: Text(label),
           ),
         ],
       ),

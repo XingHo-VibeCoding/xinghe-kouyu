@@ -11,6 +11,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/class_item.dart';
+import '../utils/design_tokens.dart';
 import 'class_files_page.dart';
 import 'class_members_page.dart';
 
@@ -19,13 +20,10 @@ class ClassDetailPage extends StatelessWidget {
 
   const ClassDetailPage({super.key, required this.cls});
 
-  // 品牌青绿（学在重邮同款）
-  static const Color teal = Color(0xFF2BC8B7);
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F8),
+      backgroundColor: kBg,
       body: SingleChildScrollView(
         child: Column(
           children: <Widget>[
@@ -135,7 +133,7 @@ class ClassDetailPage extends StatelessWidget {
                           (cls.teacherName ?? '师').characters.first,
                           style: const TextStyle(
                             fontSize: 12,
-                            color: teal,
+                            color: kTeal,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -168,9 +166,9 @@ class ClassDetailPage extends StatelessWidget {
           child: Text(
             title,
             style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF333333),
+              fontSize: kFontTitle,
+              fontWeight: FontWeight.w700,
+              color: kTextPrimary,
             ),
           ),
         ),
@@ -178,8 +176,10 @@ class ClassDetailPage extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 16),
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            color: kCard,
+            borderRadius: BorderRadius.circular(kRadiusCard),
+            border: kCardBorder,
+            boxShadow: kShadowSm,
           ),
           child: GridView.count(
             crossAxisCount: 4,
@@ -249,7 +249,7 @@ class ClassDetailPage extends StatelessWidget {
               Text(
                 item.label,
                 style: const TextStyle(
-                    fontSize: 12, color: Color(0xFF666666)),
+                    fontSize: kFontCaption, color: kTextSecondary),
               ),
             ],
           ),

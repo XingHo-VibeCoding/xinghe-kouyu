@@ -1,11 +1,11 @@
 // =====================================================================
-// 页面「首页」：1:1 复刻「学在重邮」首页（Day 20 视觉对齐）
+// 页面「首页」
 // ---------------------------------------------------------------------
 // 结构（自上而下）：
-//   1. 问候语（按当前时段：上午好/下午好/晚上好 + 昵称）
-//   2. 白卡片：两个渐变大按钮「扫码」「签到」（图标占位，点击逻辑暂不做）
-//   3. 「最近访问」横向滚动卡片（数据 = 真实班级列表）
-//   4. 「待办事项」占位卡片（静态示例，后续接作业功能）
+//   1. 问候语（按当前时段 + 身份称谓）
+//   2. 白卡片：两个渐变大按钮「扫码」「签到」
+//   3. 「最近访问」横向滚动卡片（真实班级列表）
+//   4. 「待办事项」占位卡片
 // =====================================================================
 
 import 'package:flutter/material.dart';
@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 import '../models/class_item.dart';
 import '../store/class_store.dart';
 import '../store/user_store.dart';
+import '../utils/design_tokens.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -23,9 +24,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // 品牌青绿（学在重邮同款）
-  static const Color teal = Color(0xFF2BC8B7);
-  static const Color tealDark = Color(0xFF23B9A9);
   static const Color green = Color(0xFF6FCF3F);
   static const Color greenDark = Color(0xFF4CBB3F);
 
@@ -37,13 +35,21 @@ class _HomePageState extends State<HomePage> {
     return '晚上好';
   }
 
+  /// 按身份返回称呼：老师 → 「昵称+老师」，学生 → 「昵称+同学」；
+  /// 没填昵称或未登记身份时，统一用「同学」兜底
+  String _greetName(UserStore user) {
+    final String nick = user.nickname;
+    if (nick.isEmpty) return '同学';
+    return user.role == UserRole.teacher ? '$nick老师' : '$nick同学';
+  }
+
   @override
   Widget build(BuildContext context) {
     final UserStore user = context.watch<UserStore>();
     final ClassStore classStore = context.watch<ClassStore>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F8),
+      backgroundColor: kBg,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -51,11 +57,12 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 16),
             // ---------- 1. 问候语 ----------
             Text(
-              '${_greeting()}！${user.nickname.isEmpty ? '同学' : user.nickname}同学',
+              '${_greeting()}！${_greetName(user)}',
               style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF333333),
+                fontSize: kFontHero,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+                color: kTextPrimary,
               ),
             ),
             const SizedBox(height: 16),
@@ -63,8 +70,10 @@ class _HomePageState extends State<HomePage> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                color: kCard,
+                borderRadius: BorderRadius.circular(kRadiusCard),
+                border: kCardBorder,
+                boxShadow: kShadowSm,
               ),
               child: Row(
                 children: <Widget>[
@@ -73,7 +82,7 @@ class _HomePageState extends State<HomePage> {
                       icon: Icons.qr_code_scanner,
                       label: '扫码',
                       start: const Color(0xFF45CFC4),
-                      end: tealDark,
+                      end: kTealDark,
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -93,9 +102,9 @@ class _HomePageState extends State<HomePage> {
             const Text(
               '最近访问',
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF333333),
+                fontSize: kFontTitle,
+                fontWeight: FontWeight.w700,
+                color: kTextPrimary,
               ),
             ),
             const SizedBox(height: 10),
@@ -107,23 +116,23 @@ class _HomePageState extends State<HomePage> {
                 const Text(
                   '待办事项',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
+                    fontSize: kFontTitle,
+                    fontWeight: FontWeight.w700,
+                    color: kTextPrimary,
                   ),
                 ),
                 const Spacer(),
-                // 「查看全部」小胶囊（占位）
+                // 「查看全部」小胶囊
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF0F2F4),
-                    borderRadius: BorderRadius.circular(14),
+                    color: kTealSoft,
+                    borderRadius: BorderRadius.circular(kRadiusBtn),
                   ),
                   child: const Text(
                     '查看全部',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF888888)),
+                    style: TextStyle(fontSize: kFontCaption, color: kTeal),
                   ),
                 ),
               ],
@@ -149,7 +158,6 @@ class _HomePageState extends State<HomePage> {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
-          // 占位：后续接扫码 / 签到逻辑
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('$label 功能开发中')),
           );
@@ -163,6 +171,7 @@ class _HomePageState extends State<HomePage> {
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(12),
+            boxShadow: kShadowSm,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -173,7 +182,7 @@ class _HomePageState extends State<HomePage> {
                 label,
                 style: const TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
               ),
@@ -187,17 +196,17 @@ class _HomePageState extends State<HomePage> {
   /// 最近访问：横向滚动的班级卡片（真实数据）
   Widget _buildRecentClasses(List<ClassItem> classes) {
     if (classes.isEmpty) {
-      // 没有班级时给一句引导，保持版面不空
       return Container(
         height: 90,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          color: kCard,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: kCardBorder,
         ),
         child: const Text(
           '加入班级后，这里会显示最近访问的班级',
-          style: TextStyle(fontSize: 13, color: Color(0xFF999999)),
+          style: TextStyle(fontSize: kFontBody, color: kTextHint),
         ),
       );
     }
@@ -220,14 +229,16 @@ class _HomePageState extends State<HomePage> {
     return Container(
       width: 170,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: kCard,
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: kCardBorder,
+        boxShadow: kShadowSm,
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // 上部插画占位（学在重邮是卡通插画，这里用浅蓝底+图标代替）
+          // 上部插画占位：青绿浅底 + 图标
           Container(
             height: 92,
             color: const Color(0xFFD9EEF9),
@@ -245,9 +256,9 @@ class _HomePageState extends State<HomePage> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
+                    fontSize: kFontBody,
+                    fontWeight: FontWeight.w700,
+                    color: kTextPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -255,16 +266,14 @@ class _HomePageState extends State<HomePage> {
                   '班级码: ${cls.code}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(fontSize: 11, color: Color(0xFF999999)),
+                  style: const TextStyle(fontSize: 11, color: kTextHint),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '教师: ${cls.teacherName ?? '未知'}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(fontSize: 11, color: Color(0xFF999999)),
+                  style: const TextStyle(fontSize: 11, color: kTextHint),
                 ),
               ],
             ),
@@ -279,15 +288,17 @@ class _HomePageState extends State<HomePage> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: kCard,
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: kCardBorder,
+        boxShadow: kShadowSm,
       ),
       child: Column(
         children: <Widget>[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              // 黄色圆形图标
+              // 圆形图标
               Container(
                 width: 44,
                 height: 44,
@@ -307,19 +318,19 @@ class _HomePageState extends State<HomePage> {
                       '第一讲',
                       style: TextStyle(
                         fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF333333),
+                        fontWeight: FontWeight.w700,
+                        color: kTextPrimary,
                       ),
                     ),
                     SizedBox(height: 4),
                     Text(
                       '课程名称: 待接入作业功能',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF999999)),
+                      style: TextStyle(fontSize: kFontBody, color: kTextHint),
                     ),
                     SizedBox(height: 2),
                     Text(
                       '课程代码: --',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF999999)),
+                      style: TextStyle(fontSize: kFontBody, color: kTextHint),
                     ),
                   ],
                 ),
@@ -334,14 +345,14 @@ class _HomePageState extends State<HomePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text('截止日期',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF999999))),
+                      style: TextStyle(fontSize: kFontCaption, color: kTextHint)),
                   SizedBox(height: 2),
                   Text(
                     '--',
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF333333),
+                      fontSize: kFontBody,
+                      fontWeight: FontWeight.w700,
+                      color: kTextPrimary,
                     ),
                   ),
                 ],
@@ -351,8 +362,8 @@ class _HomePageState extends State<HomePage> {
                 '待提交',
                 style: TextStyle(
                   fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: teal,
+                  fontWeight: FontWeight.w700,
+                  color: kCoral,
                 ),
               ),
             ],

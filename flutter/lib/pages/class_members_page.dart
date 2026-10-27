@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 
 import '../models/class_member.dart';
 import '../net/api_client.dart';
+import '../utils/design_tokens.dart';
 
 class ClassMembersPage extends StatefulWidget {
   final String classId;
@@ -29,7 +30,7 @@ class ClassMembersPage extends StatefulWidget {
 
 class _ClassMembersPageState extends State<ClassMembersPage> {
   // 品牌青绿（学在重邮同款）
-  static const Color teal = Color(0xFF2BC8B7);
+  
 
   // 加载状态
   bool _loading = true;
@@ -65,7 +66,7 @@ class _ClassMembersPageState extends State<ClassMembersPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F8),
+      backgroundColor: kBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF333333),
@@ -79,7 +80,7 @@ class _ClassMembersPageState extends State<ClassMembersPage> {
   /// 按状态渲染：加载中 / 出错 / 空 / 列表
   Widget _buildBody() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: teal));
+      return const Center(child: CircularProgressIndicator(color: kTeal));
     }
     if (_error != null) {
       return Center(
@@ -97,7 +98,7 @@ class _ClassMembersPageState extends State<ClassMembersPage> {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: teal),
+              style: FilledButton.styleFrom(backgroundColor: kTeal),
               onPressed: _load,
               icon: const Icon(Icons.refresh),
               label: const Text('重试'),
@@ -129,15 +130,17 @@ class _ClassMembersPageState extends State<ClassMembersPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: kCard,
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: kCardBorder,
+        boxShadow: kShadowSm,
       ),
       child: Row(
         children: <Widget>[
           // 头像：圆底 + 昵称首字
           CircleAvatar(
             radius: 22,
-            backgroundColor: m.isTeacher ? teal : const Color(0xFF8FB8D8),
+            backgroundColor: m.isTeacher ? kTeal : const Color(0xFF8FB8D8),
             child: Text(
               initial,
               style: const TextStyle(
@@ -166,7 +169,7 @@ class _ClassMembersPageState extends State<ClassMembersPage> {
               m.isTeacher ? '老师' : '学生',
               style: TextStyle(
                 fontSize: 12,
-                color: m.isTeacher ? teal : const Color(0xFF5B8FC9),
+                color: m.isTeacher ? kTeal : const Color(0xFF5B8FC9),
                 fontWeight: FontWeight.w600,
               ),
             ),

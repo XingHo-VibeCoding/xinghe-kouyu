@@ -17,19 +17,17 @@ import 'package:provider/provider.dart';
 import '../net/api_client.dart';
 import '../store/class_store.dart';
 import '../store/user_store.dart';
+import '../utils/design_tokens.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
-
-  // 品牌青绿（学在重邮同款）
-  static const Color teal = Color(0xFF2BC8B7);
 
   @override
   Widget build(BuildContext context) {
     final UserStore userStore = context.watch<UserStore>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F8),
+      backgroundColor: kBg,
       body: SingleChildScrollView(
         child: Column(
           children: <Widget>[
@@ -128,8 +126,8 @@ class ProfilePage extends StatelessWidget {
         // 中间隔一层带颜色的 DecoratedBox 会吞掉它们（触发框架警告）。
         // 注意：圆角裁切(clipBehavior)也放 Material 上，外层 Container 不再带
         // clipBehavior（没有 decoration 时带 clipBehavior 会触发断言崩溃）。
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: kCard,
+        borderRadius: BorderRadius.circular(kRadiusCard),
         clipBehavior: Clip.antiAlias,
         child: Column(
           children: items
@@ -144,7 +142,7 @@ class ProfilePage extends StatelessWidget {
   Widget _menuRow(BuildContext context, _MenuItem item) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-      leading: Icon(item.icon, size: 24, color: Color(0xFF444444)),
+      leading: Icon(item.icon, size: 24, color: kTextSecondary),
       title: Text(
         item.label,
         style: const TextStyle(fontSize: 15, color: Color(0xFF333333)),
@@ -252,7 +250,7 @@ class ProfilePage extends StatelessWidget {
                     onPressed: () => Navigator.pop(ctx, false),
                     child: const Text('取消')),
                 FilledButton(
-                    style: FilledButton.styleFrom(backgroundColor: teal),
+                    style: FilledButton.styleFrom(backgroundColor: kTeal),
                     onPressed: () => Navigator.pop(ctx, true),
                     child: const Text('保存')),
               ],
@@ -301,10 +299,10 @@ class ProfilePage extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: effective ? teal : Colors.white,
+          color: effective ? kTeal : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: effective ? teal : (enabled ? Colors.black26 : Colors.black12),
+            color: effective ? kTeal : (enabled ? Colors.black26 : Colors.black12),
           ),
         ),
         child: Column(
