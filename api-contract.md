@@ -96,10 +96,43 @@
 | `/api/classes` | POST | 老师建班（生成 uuid + 唯一班级码，老师入成员） | 规划中 |
 | `/api/classes/join` | POST | 学生按班级码加入班级 | 规划中 |
 | `/api/classes` | GET | 当前用户的班级列表 | 规划中 |
-| `/api/classes/:id/members` | GET | 某班成员列表 | 规划中 |
+| `/api/classes/members` | GET | 某班成员列表（`?class_id=xxx`） | 已落地 |
 | `/api/classes/:id/files` | GET | 某班文件列表 | 规划中 |
 | `/api/classes/:id/files` | POST | 上传文件（本体进云存储，元数据写 class_files） | 规划中 |
 | `/api/files/:id/download` | GET | 按文件记录换取云存储临时下载 URL | 规划中 |
+
+### 3.1 `GET /api/classes/members` —— 某班成员列表
+
+**用途**：查看某个班级有哪些成员（老师 + 学生），含各自昵称和班内角色。
+
+**请求**：
+- 方法：`GET`
+- 地址：`/api/classes/members?class_id=<班级id>`
+- 参数：`class_id`（必填，班级 id，即建班时返回的 uuid，不是 6 位班级码）
+
+**响应示例**：
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": [
+    { "user_id": "dev-uid-teacher-01", "nickname": "王老师", "role": "teacher", "joined_at": "..." },
+    { "user_id": "dev-uid-student-01", "nickname": "小明", "role": "student", "joined_at": "..." }
+  ]
+}
+```
+
+**字段说明**：
+
+| 字段 | 含义 |
+|---|---|
+| `user_id` | 成员 uid |
+| `nickname` | 成员昵称（拼自 users 表，可能为 null） |
+| `role` | 该成员在班内的角色（`teacher`/`student`） |
+| `joined_at` | 加入时间 |
+
+**验收判定**：`code === 0`，且 `data` 是数组，每项含上面四个字段。
 
 **实现时的要求**（提前写在这里，避免返工）：
 1. 每个接口的响应都要遵守第 1 节的 `code/message/data` 三件套；

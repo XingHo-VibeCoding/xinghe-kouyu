@@ -34,6 +34,9 @@ class ClassStore extends ChangeNotifier {
 
   /// 加载我的班级列表（联网查，uid 由调用方传入）
   Future<void> load(String uid) async {
+    // 双保险：uid 未就绪（本地身份还没读出来）时不发请求，
+    // 避免后端报「缺少 uid 参数」。等 uid 就绪后页面会再次触发加载。
+    if (uid.isEmpty) return;
     _status = ClassListStatus.loading;
     notifyListeners();
     try {

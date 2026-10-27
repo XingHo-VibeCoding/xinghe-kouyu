@@ -17,6 +17,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/class_item.dart';
+import '../models/class_member.dart';
 import '../store/user_store.dart';
 
 /// 后端基础地址（云函数 HTTP 访问服务，见 api-contract.md 1.2）
@@ -140,5 +141,18 @@ class ApiClient {
       return ApiResult.success(result.data!.isNotEmpty);
     }
     return ApiResult.fail(result.message);
+  }
+
+  /// 查「某班成员列表」
+  Future<ApiResult<List<ClassMember>>> classMembers(String classId) async {
+    final Map<String, dynamic> r =
+        await _getJson('/classes/members', {'class_id': classId});
+    if (r['code'] == 0) {
+      final List<dynamic> list = (r['data'] as List<dynamic>? ?? const []);
+      return ApiResult.success(list
+          .map((dynamic e) => ClassMember.fromJson(e as Map<String, dynamic>))
+          .toList());
+    }
+    return ApiResult.fail(r['message']?.toString() ?? '查询失败');
   }
 }

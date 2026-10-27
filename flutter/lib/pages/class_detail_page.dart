@@ -11,6 +11,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/class_item.dart';
+import 'class_members_page.dart';
 
 class ClassDetailPage extends StatelessWidget {
   final ClassItem cls;
@@ -193,13 +194,26 @@ class ClassDetailPage extends StatelessWidget {
     );
   }
 
-  /// 单个宫格：彩色圆底白图标 + 下方文字；点击占位
+  /// 单个宫格：彩色圆底白图标 + 下方文字；「班级成员」已接真实逻辑，其余占位
   Widget _gridCell(_GridItem item) {
     return Builder(
       builder: (BuildContext context) {
         return GestureDetector(
           onTap: () {
-            // 占位：后续按 MVP 优先级接入真实功能
+            // 「班级成员」→ 跳真实成员列表页
+            if (item.label == '班级成员') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ClassMembersPage(
+                    classId: cls.id,
+                    className: cls.name,
+                  ),
+                ),
+              );
+              return;
+            }
+            // 其余：占位，后续按 MVP 优先级接入
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('${item.label} 功能开发中')),
             );

@@ -29,19 +29,24 @@ class _ClassListPageState extends State<ClassListPage> {
   // 当前选中的 tab：0 = 我的班级，1 = 公开课
   int _tabIndex = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    // 首次进入自动加载一次班级列表
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final String uid = context.read<UserStore>().uid;
-      context.read<ClassStore>().load(uid);
-    });
-  }
+  // 是否已发起过首次加载（防止 uid 就绪后重复触发）
+  bool _loadRequested = false;
 
   @override
   Widget build(BuildContext context) {
     final ClassStore store = context.watch<ClassStore>();
+    // watch UserStore：uid 从「空」变为「有值」时本页会自动重建
+    final UserStore userStore = context.watch<UserStore>();
+
+    // 启动时序竞态修复：UserStore.load() 是异步的，首次构建时 uid 可能
+    // 还没从本地读出来（空字符串）。空 uid 不能发请求（后端会报缺少 uid），
+    // 所以等 uid 就绪后的第一次重建里再触发加载。
+    if (userStore.uid.isNotEmpty && !_loadRequested) {
+      _loadRequested = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) store.load(userStore.uid);
+      });
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F8),

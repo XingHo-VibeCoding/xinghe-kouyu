@@ -198,6 +198,38 @@ async function myClasses(token, uid) {
   return classes.map((c) => ({ ...c, teacher_name: teacherMap[c.teacher_id] || null }));
 }
 
+// ---------- 某班成员列表：查成员关系，再拼成员昵称 ----------
+async function classMembers(token, classId) {
+  // 1. 查这个班有哪些成员（含各自的班内角色）
+  const mRes = await request(
+    `${GATEWAY}/v1/rdb/rest/class_members?select=user_id,role,joined_at&class_id=eq.${encodeURIComponent(classId)}&order=id.asc`,
+    { method: 'GET', headers: { Authorization: 'Bearer ' + token } }
+  );
+  if (mRes.status !== 200) {
+    throw new Error('查询 class_members 失败: HTTP ' + mRes.status + ' ' + JSON.stringify(mRes.body));
+  }
+  const members = mRes.body;
+
+  // 2. 查这些成员的昵称贴上去（网关不支持 JOIN，用 id=in.(...) 一次查回）
+  if (members.length === 0) return [];
+  const userIds = [...new Set(members.map((m) => m.user_id))];
+  const uRes = await request(
+    `${GATEWAY}/v1/rdb/rest/users?select=id,nickname&id=in.(${userIds.join(',')})`,
+    { method: 'GET', headers: { Authorization: 'Bearer ' + token } }
+  );
+  const nicknameMap = {};
+  if (uRes.status === 200 && Array.isArray(uRes.body)) {
+    uRes.body.forEach((u) => { nicknameMap[u.id] = u.nickname; });
+  }
+
+  return members.map((m) => ({
+    user_id: m.user_id,
+    nickname: nicknameMap[m.user_id] || null,
+    role: m.role,
+    joined_at: m.joined_at,
+  }));
+}
+
 const server = http.createServer(async (req, res) => {
   res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
 
@@ -211,10 +243,21 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    // ---------- GET：我的班级列表 ----------
+    // ---------- GET：我的班级列表 / 某班成员列表 ----------
     if (req.method === 'GET') {
       const params = new URL(req.url, 'http://localhost').searchParams;
       const uid = params.get('uid');
+      const classId = params.get('class_id');
+
+      // 分支 2：带了 class_id → 查某班成员列表
+      if (classId) {
+        const token = await getToken();
+        const data = await classMembers(token, classId);
+        res.end(JSON.stringify({ code: 0, message: 'ok', data }));
+        return;
+      }
+
+      // 分支 1：只带 uid → 查我的班级列表
       if (!uid) {
         res.end(JSON.stringify({ code: 4000, message: '缺少 uid 参数（当前用户身份）', data: {} }));
         return;
