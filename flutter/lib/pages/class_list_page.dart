@@ -212,7 +212,7 @@ class _ClassListPageState extends State<ClassListPage> {
           const Text('还没有班级',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 6),
-          const Text('老师创建班级，学生用班级码加入',
+          const Text('老师创建班级，师生用班级码加入（支持多老师）',
               style: TextStyle(fontSize: 13, color: Color(0xFF999999))),
           const SizedBox(height: 16),
           FilledButton.icon(
@@ -381,16 +381,19 @@ class _ClassListPageState extends State<ClassListPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            ListTile(
-              leading: const Icon(Icons.create_new_folder_outlined),
-              title: const Text('创建班级（我是老师）'),
-              subtitle: const Text('生成班级码，发给学生加入'),
-              onTap: () => Navigator.pop(ctx, 'create'),
-            ),
+            // 创建班级：仅老师可见（方案 B 后学生/老师都能加入，创建仍是老师专属）
+            if (userStore.role == UserRole.teacher)
+              ListTile(
+                leading: const Icon(Icons.create_new_folder_outlined),
+                title: const Text('创建班级'),
+                subtitle: const Text('生成班级码，发给学生和其他老师加入'),
+                onTap: () => Navigator.pop(ctx, 'create'),
+              ),
+            // 加入班级：老师和学生都能用（支持多老师/换老师场景）
             ListTile(
               leading: const Icon(Icons.vpn_key_outlined),
-              title: const Text('输入班级码加入（我是学生）'),
-              subtitle: const Text('用老师给的 6 位码加入'),
+              title: const Text('输入班级码加入'),
+              subtitle: const Text('用班级码加入，身份按你登记的角色记录'),
               onTap: () => Navigator.pop(ctx, 'join'),
             ),
           ],

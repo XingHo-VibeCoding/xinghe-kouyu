@@ -11,6 +11,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/class_item.dart';
+import 'class_files_page.dart';
 import 'class_members_page.dart';
 
 class ClassDetailPage extends StatelessWidget {
@@ -194,7 +195,7 @@ class ClassDetailPage extends StatelessWidget {
     );
   }
 
-  /// 单个宫格：彩色圆底白图标 + 下方文字；「班级成员」已接真实逻辑，其余占位
+  /// 单个宫格：彩色圆底白图标 + 下方文字；「班级成员」「课件」已接真实逻辑，其余占位
   Widget _gridCell(_GridItem item) {
     return Builder(
       builder: (BuildContext context) {
@@ -206,6 +207,19 @@ class ClassDetailPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => ClassMembersPage(
+                    classId: cls.id,
+                    className: cls.name,
+                  ),
+                ),
+              );
+              return;
+            }
+            // 「课件」→ 跳真实文件列表页
+            if (item.label == '课件') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ClassFilesPage(
                     classId: cls.id,
                     className: cls.name,
                   ),

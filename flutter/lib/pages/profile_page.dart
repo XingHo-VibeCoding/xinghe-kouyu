@@ -122,15 +122,20 @@ class ProfilePage extends StatelessWidget {
   Widget _menuGroup(BuildContext context, List<_MenuItem> items) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
+      child: Material(
+        // 用 Material 提供白底（不用 Container 的 BoxDecoration）：
+        // ListTile 的背景和水波纹画在最近的 Material 祖先上，
+        // 中间隔一层带颜色的 DecoratedBox 会吞掉它们（触发框架警告）。
+        // 注意：圆角裁切(clipBehavior)也放 Material 上，外层 Container 不再带
+        // clipBehavior（没有 decoration 时带 clipBehavior 会触发断言崩溃）。
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: items
-            .map(( _MenuItem item) => _menuRow(context, item))
-            .toList(),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: items
+              .map(( _MenuItem item) => _menuRow(context, item))
+              .toList(),
+        ),
       ),
     );
   }

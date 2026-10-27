@@ -1,6 +1,6 @@
 # 星禾口语 · 后端接口契约（api-contract）
 
-> 版本：v0.2（Day 20，接口规划从「播放器文件管理占位」切换为「班级管理」）｜ 状态：仅 `/api/health` 已落地，班级管理接口为规划
+> 版本：v0.3（Day 23，班级文件上传下载 + 多老师模型落地）｜ 状态：班级管理核心接口均已落地，仅文件「下载」走前端直连（见 3.4 说明）
 > 配套：`backend/functions/`（云函数代码）｜ 上游：PRD.md 3.6、TECH_DESIGN.md 第 6 节
 
 本文档是「前端页面」和「后端云函数」之间的约定。两边各自开发时，都以这份文档为准，
@@ -85,21 +85,21 @@
 
 ---
 
-## 3. 班级管理接口（Day 20 起规划，逐步落地）
+## 3. 班级管理接口（Day 20 起规划，Day 23 核心接口已落地）
 
 > 这些接口依赖 TECH_DESIGN 6.1 的云端四表（users/classes/class_members/class_files），
-> 字段结构以那节为准。状态统一为「规划中」，实现时再回填响应示例和字段表。
+> 字段结构以那节为准。已落地的接口在下方 3.1~3.4 有响应示例和字段表。
 
 | 接口 | 方法 | 用途 | 状态 |
 |---|---|---|---|
-| `/api/users` | POST | 首次进入：登记昵称 + 角色（老师/学生） | 规划中 |
-| `/api/classes` | POST | 老师建班（生成 uuid + 唯一班级码，老师入成员） | 规划中 |
-| `/api/classes/join` | POST | 学生按班级码加入班级 | 规划中 |
-| `/api/classes` | GET | 当前用户的班级列表 | 规划中 |
+| `/api/users` | POST | 首次进入：登记昵称 + 角色（老师/学生） | 已落地 |
+| `/api/classes` | POST | 老师建班（生成 uuid + 唯一班级码，老师入成员） | 已落地 |
+| `/api/classes/join` | POST | 按班级码加入班级（学生/老师均可，按本人身份写入角色，支持多老师） | 已落地 |
+| `/api/classes` | GET | 当前用户的班级列表（含所有老师昵称，多老师用「、」拼接） | 已落地 |
 | `/api/classes/members` | GET | 某班成员列表（`?class_id=xxx`） | 已落地 |
-| `/api/classes/:id/files` | GET | 某班文件列表 | 规划中 |
-| `/api/classes/:id/files` | POST | 上传文件（本体进云存储，元数据写 class_files） | 规划中 |
-| `/api/files/:id/download` | GET | 按文件记录换取云存储临时下载 URL | 规划中 |
+| `/api/classes/files` | GET | 某班文件列表（`?class_id=xxx`） | 已落地 |
+| `/api/classes/files` | POST | 上传文件记元数据（本体进云存储，元数据写 class_files） | 已落地 |
+| 文件下载 | — | 前端直连 `get-objects-download-info` 拿签名 URL（不走云函数），见 3.4 | 已落地 |
 
 ### 3.1 `GET /api/classes/members` —— 某班成员列表
 
@@ -133,6 +133,80 @@
 | `joined_at` | 加入时间 |
 
 **验收判定**：`code === 0`，且 `data` 是数组，每项含上面四个字段。
+
+### 3.2 `POST /api/classes/files` —— 上传文件记元数据
+
+**用途**：文件本体已直传云存储后，把「文件信息」登记进 class_files 表（账本）。
+
+**请求**：
+- 方法：`POST`
+- 地址：`/api/classes/files`
+- 请求体（JSON）：
+
+```json
+{
+  "class_id": "<班级id>",
+  "title": "第1课 跟读",
+  "cloud_path": "cloud://envId.xxx/class-files/xxx.mp3",
+  "size": 2048000,
+  "format": "mp3",
+  "uploader_id": "<上传者uid>"
+}
+```
+
+**字段说明**：
+
+| 字段 | 必填 | 含义 |
+|---|---|---|
+| `class_id` | 是 | 所属班级 id |
+| `title` | 是 | 展示名 |
+| `cloud_path` | 是 | 云存储的 fileID（SDK 直传返回的 `cloud://...`） |
+| `size` | 否 | 字节数 |
+| `format` | 否 | 文件格式（mp3/mp4 等） |
+| `uploader_id` | 是 | 上传者 uid |
+
+**响应**：`code=0` 时 `data` 是插入后的文件记录。
+
+**验收判定**：`code === 0`，且数据库 class_files 表多一行。
+
+### 3.3 `GET /api/classes/files` —— 某班文件列表
+
+**用途**：查某班的文件元数据列表（学生下载前先看这个）。
+
+**请求**：
+- 方法：`GET`
+- 地址：`/api/classes/files?class_id=<班级id>`
+
+**响应示例**：
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": [
+    { "id": "uuid", "title": "第1课 跟读", "cloud_path": "cloud://...", "size": 2048000, "format": "mp3", "uploader_id": "...", "created_at": "..." }
+  ]
+}
+```
+
+**验收判定**：`code === 0`，`data` 是数组，按创建时间倒序。
+
+### 3.4 文件下载（前端直连，不走云函数）
+
+**用途**：学生点文件后，前端拿临时签名 URL 下载文件本体。
+
+**实现方式**：前端直接调 CloudBase 存储 HTTP API（不经过本项目云函数）：
+
+1. `POST /v1/storages/get-objects-download-info`（网关）
+   - 请求体：`[{"cloudObjectId": "<带桶ID的fileID>"}]`
+   - 注意：cloudObjectId 必须带「桶 ID 后缀」，格式 `cloud://envId.<桶ID>/桶/key`；
+     数据库 class_files.cloud_path 存的是 `cloud://envId/桶/key`（缺后缀），前端做字符串转换补上。
+2. 用返回的 `downloadUrl`（带签名）直接 `GET`/`dio.download` 下载文件到本地。
+
+**下载后的去向**：文件落 App 私有目录 `materials/`，并注册进本地 sqflite（`materials` 表，
+归属「班级下载」文件夹），之后由本地播放器统一处理（离线可用）。
+
+**验收判定**：学生点文件 → 下载成功 → 播放器「班级下载」文件夹里出现该文件、可播放。
 
 **实现时的要求**（提前写在这里，避免返工）：
 1. 每个接口的响应都要遵守第 1 节的 `code/message/data` 三件套；

@@ -11,6 +11,7 @@
 
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -169,6 +170,60 @@ class MaterialStore extends ChangeNotifier {
   Future<void> moveMaterial(int materialId, int newFolderId) async {
     await DatabaseHelper.instance.moveMaterial(materialId, newFolderId);
     await load();
+  }
+
+  /// 【班级文件下载】把云端班级文件下载到本地素材库，注册成一条素材。
+  /// 完整链路：拿下载 URL → 下载到 materials 目录 → 写进 sqflite → 刷新。
+  /// 归属「班级下载」专用文件夹（不存在则自动建），与本地导入的素材分开。
+  /// 之后该文件就和本地素材一样，能被播放器、文件夹管理统一处理（离线可用）。
+  Future<void> downloadClassFile({
+    required String title,
+    required String format,
+    required String downloadUrl,
+  }) async {
+    // 1. 确保「班级下载」文件夹存在（不存在则建，拿到 folderId）
+    int folderId = -1;
+    for (final Folder f in _folders) {
+      if (f.name == '班级下载') {
+        folderId = f.id;
+        break;
+      }
+    }
+    if (folderId == -1) {
+      folderId = await DatabaseHelper.instance.insertFolder('班级下载');
+    }
+
+    // 2. 下载文件到 App 私有目录的 materials 子目录（和导入素材同一目录约定）
+    final Directory appDir = await getApplicationDocumentsDirectory();
+    final Directory materialDir = Directory(p.join(appDir.path, 'materials'));
+    if (!await materialDir.exists()) {
+      await materialDir.create(recursive: true);
+    }
+    final String safeName =
+        title.replaceAll(RegExp(r'[^\w\u4e00-\u9fa5.-]'), '_');
+    final String destPath = p.join(
+      materialDir.path,
+      '${DateTime.now().millisecondsSinceEpoch}_$safeName',
+    );
+
+    // 用 http 下载（dio 的 download 需要 dio，这里用 HttpClient 避免额外依赖判断）
+    final dioClient = Dio();
+    await dioClient.download(
+      downloadUrl,
+      destPath,
+      options: Options(
+        sendTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(minutes: 5),
+      ),
+    );
+
+    // 3. 写库 + 刷新
+    await addMaterial(
+      title: title,
+      folderId: folderId,
+      format: format.isEmpty ? 'unknown' : format,
+      filePath: destPath,
+    );
   }
 
   /// 重命名素材（带后缀保护：用户没打后缀时自动补原格式后缀）

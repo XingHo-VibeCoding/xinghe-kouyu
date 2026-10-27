@@ -9,8 +9,8 @@ import 'package:flutter/material.dart';
 
 import 'class_list_page.dart';
 import 'home_page.dart';
+import 'material_list_page.dart';
 import 'profile_page.dart';
-import 'work_page.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -29,7 +29,7 @@ class _HomeShellState extends State<HomeShell> {
   static const List<Widget> _pages = <Widget>[
     HomePage(),
     ClassListPage(),
-    WorkPage(),
+    MaterialListPage(),
     ProfilePage(),
   ];
 
@@ -57,9 +57,8 @@ class _HomeShellState extends State<HomeShell> {
             children: <Widget>[
               Expanded(child: _navItem(0, Icons.home_filled, '首页')),
               Expanded(child: _navItem(1, Icons.menu_book_outlined, '班级')),
-              // 作业 tab 带 99+ 红色角标（1:1 复刻参考图）
-              Expanded(child: _navItem(2, Icons.notifications_none, '作业',
-                  badge: '99+')),
+              // 原「作业」栏换成播放器（素材列表），承接班级文件下载后的本地播放
+              Expanded(child: _navItem(2, Icons.library_music_outlined, '播放')),
               Expanded(child: _navItem(3, Icons.school_outlined, '我的')),
             ],
           ),

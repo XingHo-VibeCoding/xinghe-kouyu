@@ -16,6 +16,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/class_file.dart';
 import '../models/class_item.dart';
 import '../models/class_member.dart';
 import '../store/user_store.dart';
@@ -154,5 +155,41 @@ class ApiClient {
           .toList());
     }
     return ApiResult.fail(r['message']?.toString() ?? '查询失败');
+  }
+
+  /// 查「某班文件列表」
+  Future<ApiResult<List<ClassFile>>> classFiles(String classId) async {
+    final Map<String, dynamic> r =
+        await _getJson('/classes/files', {'class_id': classId});
+    if (r['code'] == 0) {
+      final List<dynamic> list = (r['data'] as List<dynamic>? ?? const []);
+      return ApiResult.success(list
+          .map((dynamic e) => ClassFile.fromJson(e as Map<String, dynamic>))
+          .toList());
+    }
+    return ApiResult.fail(r['message']?.toString() ?? '查询失败');
+  }
+
+  /// 上传文件记元数据（文件本体已直传云存储后调用）
+  Future<ApiResult<ClassFile>> addClassFile({
+    required String classId,
+    required String title,
+    required String cloudPath,
+    int? size,
+    String? format,
+    required String uploaderId,
+  }) async {
+    final Map<String, dynamic> r = await _postJson('/classes/files', {
+      'class_id': classId,
+      'title': title,
+      'cloud_path': cloudPath,
+      'size': size,
+      'format': format,
+      'uploader_id': uploaderId,
+    });
+    if (r['code'] == 0) {
+      return ApiResult.success(ClassFile.fromJson(r['data'] as Map<String, dynamic>));
+    }
+    return ApiResult.fail(r['message']?.toString() ?? '上传失败');
   }
 }

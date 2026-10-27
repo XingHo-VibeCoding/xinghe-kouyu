@@ -136,8 +136,10 @@ async function joinClass(token, uid, code) {
     return { code: 4001, message: '用户不存在，请先登记身份', data: {} };
   }
   const role = uRes.body[0].role;
-  if (role !== 'student') {
-    return { code: 4004, message: '只有学生才能加入班级', data: {} };
+  // 方案 B：学生和老师都能加入（支持「班级中途换老师/多老师」）。
+  // 加入时按加入者自己的身份写 role，老师加入就是班里的 teacher，学生就是 student。
+  if (role !== 'student' && role !== 'teacher') {
+    return { code: 4004, message: '身份无效，无法加入班级', data: {} };
   }
 
   const mRes = await request(
@@ -148,14 +150,14 @@ async function joinClass(token, uid, code) {
     return { code: 4005, message: '你已经在这个班级里了', data: {} };
   }
 
-  // 3. 写成员表
+  // 3. 写成员表（role 用加入者自己的身份，支持多老师）
   const insRes = await request(`${GATEWAY}/v1/rdb/rest/class_members`, {
     method: 'POST',
     headers: {
       Authorization: 'Bearer ' + token,
       'Content-Type': 'application/json',
     },
-  }, JSON.stringify({ class_id: cls.id, user_id: uid, role: 'student' }));
+  }, JSON.stringify({ class_id: cls.id, user_id: uid, role: role }));
   if (insRes.status !== 201) {
     return { code: 5003, message: '加入失败: HTTP ' + insRes.status + ' ' + JSON.stringify(insRes.body), data: {} };
   }
@@ -185,17 +187,37 @@ async function myClasses(token, uid) {
   }
   const classes = cRes.body;
 
-  // 3. 查老师名字贴上去（代替 SQL JOIN）
-  const teacherIds = [...new Set(classes.map((c) => c.teacher_id))];
-  const tRes = await request(
-    `${GATEWAY}/v1/rdb/rest/users?select=id,nickname&id=in.(${teacherIds.join(',')})`,
+  // 3. 查每个班的所有老师（多老师：以 class_members 里 role=teacher 为准，
+  //    不再用 classes.teacher_id 单值——那是「建班人」，换老师后会失真）
+  const cidList = classes.map((c) => c.id).join(',');
+  const tmRes = await request(
+    `${GATEWAY}/v1/rdb/rest/class_members?select=class_id,user_id&class_id=in.(${cidList})&role=eq.teacher`,
     { method: 'GET', headers: { Authorization: 'Bearer ' + token } }
   );
-  const teacherMap = {};
-  if (tRes.status === 200 && Array.isArray(tRes.body)) {
-    tRes.body.forEach((t) => { teacherMap[t.id] = t.nickname; });
+  if (tmRes.status !== 200) {
+    throw new Error('查询班级老师失败: HTTP ' + tmRes.status + ' ' + JSON.stringify(tmRes.body));
   }
-  return classes.map((c) => ({ ...c, teacher_name: teacherMap[c.teacher_id] || null }));
+  const teacherMembers = tmRes.body; // [{class_id, user_id}, ...]
+
+  // 4. 查老师昵称贴上去（代替 SQL JOIN）
+  const teacherIds = [...new Set(teacherMembers.map((m) => m.user_id))];
+  const teacherMap = {};
+  if (teacherIds.length > 0) {
+    const tRes = await request(
+      `${GATEWAY}/v1/rdb/rest/users?select=id,nickname&id=in.(${teacherIds.join(',')})`,
+      { method: 'GET', headers: { Authorization: 'Bearer ' + token } }
+    );
+    if (tRes.status === 200 && Array.isArray(tRes.body)) {
+      tRes.body.forEach((t) => { teacherMap[t.id] = t.nickname; });
+    }
+  }
+  // 每个班的所有老师昵称，用「、」拼接（前端直接显示）
+  return classes.map((c) => {
+    const names = teacherMembers
+      .filter((m) => m.class_id === c.id)
+      .map((m) => teacherMap[m.user_id] || '未知老师');
+    return { ...c, teacher_name: names.length > 0 ? names.join('、') : null };
+  });
 }
 
 // ---------- 某班成员列表：查成员关系，再拼成员昵称 ----------
@@ -230,6 +252,53 @@ async function classMembers(token, classId) {
   }));
 }
 
+// ---------- 某班文件列表：查 class_files 表 ----------
+async function classFiles(token, classId) {
+  const fRes = await request(
+    `${GATEWAY}/v1/rdb/rest/class_files?select=id,title,cloud_path,size,format,uploader_id,created_at&class_id=eq.${encodeURIComponent(classId)}&order=created_at.desc`,
+    { method: 'GET', headers: { Authorization: 'Bearer ' + token } }
+  );
+  if (fRes.status !== 200) {
+    throw new Error('查询 class_files 失败: HTTP ' + fRes.status + ' ' + JSON.stringify(fRes.body));
+  }
+  return fRes.body;
+}
+
+// ---------- 上传文件记元数据：写 class_files 表 ----------
+async function addClassFile(token, payload) {
+  const { class_id, title, cloud_path, size, format, uploader_id } = payload;
+
+  // 校验必填字段
+  if (!class_id) return { code: 4000, message: '缺少班级 id（class_id）', data: {} };
+  if (!title) return { code: 4000, message: '缺少文件标题（title）', data: {} };
+  if (!cloud_path) return { code: 4000, message: '缺少云存储路径（cloud_path）', data: {} };
+  if (!uploader_id) return { code: 4000, message: '缺少上传者（uploader_id）', data: {} };
+
+  // 生成文件记录 id + 插入
+  const fileId = crypto.randomUUID();
+  const insRes = await request(`${GATEWAY}/v1/rdb/rest/class_files`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+  }, JSON.stringify({
+    id: fileId,
+    class_id,
+    title,
+    cloud_path,
+    size: size || null,
+    format: format || null,
+    uploader_id,
+  }));
+
+  if (insRes.status !== 201) {
+    return { code: 5004, message: '写入文件记录失败: HTTP ' + insRes.status + ' ' + JSON.stringify(insRes.body), data: {} };
+  }
+  return { code: 0, message: 'ok', data: insRes.body[0] };
+}
+
 const server = http.createServer(async (req, res) => {
   res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
 
@@ -243,11 +312,25 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    // ---------- GET：我的班级列表 / 某班成员列表 ----------
+    // ---------- GET：我的班级列表 / 某班成员列表 / 某班文件列表 ----------
     if (req.method === 'GET') {
-      const params = new URL(req.url, 'http://localhost').searchParams;
+      const url = new URL(req.url, 'http://localhost');
+      const path = url.pathname;
+      const params = url.searchParams;
       const uid = params.get('uid');
       const classId = params.get('class_id');
+
+      // 分支 3：路径含 /files → 查某班文件列表
+      if (path.endsWith('/files')) {
+        if (!classId) {
+          res.end(JSON.stringify({ code: 4000, message: '缺少班级 id（class_id）', data: {} }));
+          return;
+        }
+        const token = await getToken();
+        const data = await classFiles(token, classId);
+        res.end(JSON.stringify({ code: 0, message: 'ok', data }));
+        return;
+      }
 
       // 分支 2：带了 class_id → 查某班成员列表
       if (classId) {
@@ -268,7 +351,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // ---------- POST：建班 / 加入 ----------
+    // ---------- POST：建班 / 加入 / 上传文件记元数据 ----------
     if (req.method === 'POST') {
       // 读请求体（JSON）
       let reqBody = '';
@@ -276,6 +359,16 @@ const server = http.createServer(async (req, res) => {
       req.on('end', async () => {
         let payload = {};
         try { payload = JSON.parse(reqBody || '{}'); } catch (e) { /* 空体 */ }
+
+        // 分支：路径含 /files → 上传文件记元数据（不依赖 action）
+        const path = new URL(req.url, 'http://localhost').pathname;
+        if (path.endsWith('/files')) {
+          const token = await getToken();
+          const result = await addClassFile(token, payload);
+          res.end(JSON.stringify(result));
+          return;
+        }
+
         const { action, uid } = payload;
         if (!uid) {
           res.end(JSON.stringify({ code: 4000, message: '缺少 uid（当前用户身份）', data: {} }));
