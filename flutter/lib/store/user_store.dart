@@ -22,6 +22,7 @@
 // 资料没完善就放进去，用户只会撞上「用户不存在，请先登记身份」这种死路。
 // =====================================================================
 
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -48,11 +49,40 @@ class UserStore extends ChangeNotifier {
   static const String _kNickname = 'user.nickname';
   static const String _kRole = 'user.role';
 
+  /// 本地缓存里的资料属于哪个账号（Day 24 修 BUG 新增）。
+  /// 没有它就无法判断「本地缓存的昵称/角色」能不能代表当前登录的账号，
+  /// 换账号后可能把上一个人的资料当成自己的。
+  static const String _kProfileUid = 'user.profile.uid';
+
   String _deviceUid = ''; // 设备级 uid（游客态身份）
   String _accountUid = ''; // CloudBase UID（空 = 未登录）
+  String _username = ''; // 注册时设置的登录用户名（会话里读出，空 = 未知）
   String _nickname = '';
   UserRole? _role;
   bool _profileReady = false; // 云端 users 表里是否有本账号的资料
+
+  /// 本地缓存资料所属的账号 uid（读自 SharedPreferences）
+  String _cachedProfileUid = '';
+
+  /// 本次会话是否**成功**问过云端 users 表（拿到 code=0 才算）。
+  /// 用它区分「没同步」和「同步过但云端没记录」，否则一次网络失败就会
+  /// 永久卡在「资料未完善」——每次都因为 uid 没变被提前 return 掉。
+  bool _profileSynced = false;
+
+  /// 启动引导是否还没走完（拿到 uid、定下资料态之前为 true）。
+  /// 界面靠它显示加载态，避免冷启动瞬间先闪一下「请先登录」再跳走。
+  bool _booting = true;
+
+  /// 是否正在向云端确认资料（已登录但还没定论时）。
+  /// 界面靠它区分「正在查」和「查完了确实没有」——前者显示加载态，
+  /// 后者才显示「完善资料」。不加这个就会在网络慢时先闪一下完善资料页。
+  bool _profileLoading = false;
+
+  /// 是否仍在启动引导中
+  bool get booting => _booting;
+
+  /// 是否正在确认云端资料
+  bool get profileLoading => _profileLoading;
 
   /// 当前业务身份：已登录 = CloudBase UID；游客 = 设备 uid
   String get uid => _accountUid.isNotEmpty ? _accountUid : _deviceUid;
@@ -69,6 +99,9 @@ class UserStore extends ChangeNotifier {
   String get nickname => _nickname;
   UserRole? get role => _role;
 
+  /// 注册时设置的登录用户名（管理台对账用；取不到时为空串）
+  String get username => _username;
+
   /// 是否已完成资料登记（本地口径，仅用于兼容旧调用）
   bool get isRegistered => _nickname.isNotEmpty && _role != null;
 
@@ -78,22 +111,43 @@ class UserStore extends ChangeNotifier {
 
   /// 启动时调用一次：先读本地缓存（快，不阻塞首屏），再异步对齐云端
   Future<void> load() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-    _deviceUid = prefs.getString(_kUid) ?? '';
-    if (_deviceUid.isEmpty) {
-      // 首次启动：本地生成一个 uid（去掉 UUID 里的横线，更短、更干净）
-      _deviceUid = _genUid();
-      await prefs.setString(_kUid, _deviceUid);
+      _deviceUid = prefs.getString(_kUid) ?? '';
+      if (_deviceUid.isEmpty) {
+        // 首次启动：本地生成一个 uid（去掉 UUID 里的横线，更短、更干净）
+        _deviceUid = _genUid();
+        await prefs.setString(_kUid, _deviceUid);
+      }
+
+      _nickname = prefs.getString(_kNickname) ?? '';
+      _role = userRoleFromName(prefs.getString(_kRole));
+      _cachedProfileUid = prefs.getString(_kProfileUid) ?? '';
+
+      // 先让界面用本地缓存立刻渲染，再后台确认登录态 + 拉云端资料
+      notifyListeners();
+      await syncAccount();
+
+      // 冷启动瞬间 SDK 恢复会话可能失败（刷新 token 撞上网络抖动），
+      // 这时 currentUid() 会返回 null，界面就停在「未登录」。补一次重试，
+      // 让「明明登录着却被当成游客」只在真的没会话时发生。
+      if (!isSignedIn && !_retriedBootSession) {
+        _retriedBootSession = true;
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
+        await syncAccount();
+      }
+    } finally {
+      // 无论中途出什么岔子都要结束启动引导，否则界面会一直转圈。
+      if (_booting) {
+        _booting = false;
+        notifyListeners();
+      }
     }
-
-    _nickname = prefs.getString(_kNickname) ?? '';
-    _role = userRoleFromName(prefs.getString(_kRole));
-
-    // 先让界面用本地缓存立刻渲染，再后台确认登录态 + 拉云端资料
-    notifyListeners();
-    await syncAccount();
   }
+
+  /// 启动期是否已经补过一次会话重试（只补一次，避免无限循环）
+  bool _retriedBootSession = false;
 
   // ------------------------------------------------------------------
   // 认证：登录态同步
@@ -106,17 +160,53 @@ class UserStore extends ChangeNotifier {
   Future<void> syncAccount() async {
     final String? accountUid = await AuthService.currentUid();
     final String next = accountUid ?? '';
-    if (next == _accountUid) return; // 身份没变，不重复请求
+
+    // 身份没变 + 已经成功同步过 → 不必重复请求。
+    // 注意后半句：如果上次同步失败（_profileSynced=false），这里必须放行，
+    // 否则「一次网络失败」会被当成「身份没变」永久跳过，界面就卡在
+    // 「完善资料」出不来（本次 BUG 的主因之一）。
+    if (next == _accountUid && (_accountUid.isEmpty || _profileSynced)) {
+      // 必须通知：booting 可能刚从 true 变 false，界面要靠这次通知
+      // 从加载态切到「登录引导」，否则首启游客会一直转圈。
+      if (_booting) {
+        _booting = false;
+        notifyListeners();
+      }
+      return;
+    }
 
     _accountUid = next;
     if (next.isEmpty) {
       // 未登录：资料态一并失效（游客没有云端资料）
+      _username = '';
       _profileReady = false;
+      _profileSynced = false;
+      _booting = false;
       notifyListeners();
       return;
     }
 
-    notifyListeners(); // 先让界面切到「已登录」，再等资料
+    // 本地缓存属于本账号 → **先信本地**，立刻显示班级列表。
+    // 云端结果回来后再校正。这是离线优先的底线：网络慢或云函数抖动
+    // 不该把一个资料齐全的老用户当成新用户，逼他重填身份。
+    if (_cachedProfileUid == next && _nickname.isNotEmpty && _role != null) {
+      _profileReady = true;
+    } else if (_cachedProfileUid.isNotEmpty && _cachedProfileUid != next) {
+      // 缓存是别的账号留下的：不能拿来冒充当前账号
+      _nickname = '';
+      _role = null;
+      _profileReady = false;
+      await _clearProfileCache();
+    }
+
+    // 顺带把注册用户名从会话里读出来（保存资料时带给 users 表）
+    _username = await AuthService.currentUsername() ?? '';
+
+    // 已登录但本地没有可信资料 → 先显示加载态，等云端定论再决定是
+    // 「完善资料」还是「班级列表」，避免网络慢时先闪一下完善资料页。
+    if (!_profileReady) _profileLoading = true;
+    _booting = false; // 登录态与资料态已定，先让界面渲染出来
+    notifyListeners(); // 再等云端资料（可能慢，也可能失败）
     await syncProfileFromCloud();
   }
 
@@ -131,26 +221,42 @@ class UserStore extends ChangeNotifier {
   Future<void> syncProfileFromCloud() async {
     if (_accountUid.isEmpty) {
       _profileReady = false;
+      _profileLoading = false;
       notifyListeners();
       return;
     }
 
-    final ApiResult<UserProfile?> res = await _api.fetchUser(_accountUid);
-    if (!res.ok) return;
+    final String uid = _accountUid;
+    _profileLoading = true;
+    try {
+      final ApiResult<UserProfile?> res = await _api.fetchUser(uid);
+      if (uid != _accountUid) return; // 期间切换了账号：丢弃过期结果
 
-    final UserProfile? profile = res.data;
-    if (profile == null) {
-      _profileReady = false;
-      _nickname = '';
-      _role = null;
-      await _clearProfileCache();
-    } else {
-      _profileReady = true;
-      _nickname = profile.nickname;
-      _role = profile.role;
-      await _cacheProfile();
+      // 网络/云函数失败：保持现有判断（有本地缓存就继续可用），不推翻。
+      // 这一条是本次 BUG 的关键——以前一次失败会把用户永久钉在完善资料页。
+      if (!res.ok) return;
+
+      // 到这里才算真的问过云端（不论有没有记录），下次同账号可以跳过
+      _profileSynced = true;
+
+      final UserProfile? profile = res.data;
+      if (profile == null) {
+        _profileReady = false;
+        _nickname = '';
+        _role = null;
+        await _clearProfileCache();
+      } else {
+        _profileReady = true;
+        _nickname = profile.nickname;
+        _role = profile.role;
+        await _cacheProfile();
+      }
+    } catch (_) {
+      // 任何异常都不能中断启动流程，也不能推翻已就绪的资料态
+    } finally {
+      if (uid == _accountUid) _profileLoading = false;
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   /// 登出：清云端会话 + 账号资料；本地素材/播放进度不受影响
@@ -164,7 +270,10 @@ class UserStore extends ChangeNotifier {
       // 登出请求失败也要清本地登录态，否则用户会被困在"登不出去"的状态
     }
     _accountUid = '';
+    _username = '';
     _profileReady = false;
+    _profileSynced = false;
+    _cachedProfileUid = '';
     _nickname = '';
     _role = null;
     await _clearProfileCache();
@@ -187,13 +296,18 @@ class UserStore extends ChangeNotifier {
       return ApiResult.fail('请先登录后再设置昵称和身份');
     }
     final String trimmed = nickname.trim();
-    final ApiResult<void> res =
-        await _api.registerUser(_accountUid, trimmed, role);
+    final ApiResult<void> res = await _api.registerUser(
+      _accountUid,
+      trimmed,
+      role,
+      username: _username, // 注册用户名一并落库（Day 24：管理台对账用）
+    );
     if (!res.ok) return res; // 云端失败：本地一个字都不改
 
     _nickname = trimmed;
     _role = role;
     _profileReady = true;
+    _profileSynced = true; // 刚写成功，云端确实有这个 uid 了
     await _cacheProfile();
     notifyListeners();
     return res;
@@ -206,6 +320,8 @@ class UserStore extends ChangeNotifier {
   Future<void> _cacheProfile() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kNickname, _nickname);
+    await prefs.setString(_kProfileUid, _accountUid); // 标记这份缓存属于谁
+    _cachedProfileUid = _accountUid;
     if (_role != null) await prefs.setString(_kRole, _role!.name);
   }
 
@@ -213,6 +329,8 @@ class UserStore extends ChangeNotifier {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kNickname);
     await prefs.remove(_kRole);
+    await prefs.remove(_kProfileUid);
+    _cachedProfileUid = '';
   }
 
   /// 生成一个本地 uid：时间戳 + 随机数拼起来，足够当「设备身份」用

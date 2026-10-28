@@ -56,6 +56,12 @@ dependencies:
   # 视频播放器：显示视频画面，替代 PWA 的 <video>
   video_player: ^2.9.2
 
+  # 波形提取（F12 时域图）：用系统解码器把音频算成 min/max 采样，产出 .wave 文件
+  # 选它的依据（Day 24 对比过 4 个包）：按列取 min/max 是真时域包络、双声道取平均、
+  # 独立后台线程 + 进度只传一个 int、输出文件天然可当缓存。
+  # 注意：只支持 Android / iOS，Windows 无实现 → 代码里按平台隐藏波形（见 waveform_service）。
+  just_waveform: ^0.0.7
+
   # 本地键值存储：存设备身份 uid、昵称、角色（班级管理 MVP 的身份层）
   shared_preferences: ^2.3.2
 

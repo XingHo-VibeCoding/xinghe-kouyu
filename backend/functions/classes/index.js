@@ -40,23 +40,20 @@ function request(url, options = {}, body = null) {
   });
 }
 
-// 设备 ID：云函数作为服务端匿名登录时的固定标识（这只是「查表管理员」的通行证，
-// 不代表业务用户身份；业务用户身份由前端传 uid 过来）
-const DEVICE_ID = 'xinghe-cloudfunction-server';
+// ---------- 服务端鉴权：ApiKey（长期有效，管理员权限） ----------
+// Day 24 v3：原匿名登录方式随「关闭匿名登录」一起退役，改用 ApiKey。
+// 密钥放环境变量 TCB_API_KEY，不进代码、不进 Git。
+// 官方文档：https://docs.cloudbase.net/http-api/basic/access-token
+const API_KEY = process.env.TCB_API_KEY;
 
-// ---------- 匿名登录，拿网关查表用的 token ----------
 async function getToken() {
-  const res = await request(`${GATEWAY}/auth/v1/signin/anonymously`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-device-id': DEVICE_ID, // 必填：缺了会报「请在请求头添加设备id」
-    },
-  }, '{}');
-  if (res.status !== 200 || !res.body || !res.body.access_token) {
-    throw new Error('匿名登录失败: HTTP ' + res.status + ' ' + JSON.stringify(res.body));
+  if (!API_KEY) {
+    throw new Error(
+      '环境变量 TCB_API_KEY 未配置（控制台 → API Key 管理创建，' +
+      '再配到本云函数的环境变量里，与 ENV_ID 同一位置）'
+    );
   }
-  return res.body.access_token;
+  return API_KEY; // 长期有效，无需登录/刷新
 }
 
 // ---------- 生成 6 位班级码（大写字母 + 数字，去掉易混淆的 0/O/1/I） ----------

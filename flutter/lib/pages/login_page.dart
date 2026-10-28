@@ -3,7 +3,9 @@
 // ---------------------------------------------------------------------
 // 逻辑：账号（用户名或 11 位手机号）+ 密码 → AuthService.signInWithPassword
 //       → 成功：同步账号身份（UserStore.syncAccount）后返回上一页
-//       → 失败：统一提示「账号或密码不对」（不区分用户不存在/密码错，防撞库探测）
+//       → 失败：两种情况分开提示——
+//           密码/账号不对 → 「账号或密码不对」（不区分用户不存在/密码错，防撞库探测）
+//           断网/超时     → 「网络连接失败，请检查网络后重试」
 // 底部入口：「没有账号？去注册」→ 注册页。
 // =====================================================================
 
@@ -52,9 +54,12 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _loading = false);
 
     if (!res.ok) {
-      // 统一口径：不区分「用户不存在」和「密码错误」，防撞库探测
+      // 网络故障要单独提示：断网时密码是对的，提示「账号或密码不对」
+      // 会让用户反复怀疑自己记错密码（Day 24 实测踩到）。
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('账号或密码不对')),
+        SnackBar(
+          content: Text(res.isNetwork ? res.message : '账号或密码不对'),
+        ),
       );
       return;
     }

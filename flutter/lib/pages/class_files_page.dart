@@ -88,12 +88,16 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
       // 3. 读文件字节（13.x 用 readAsBytes()，不再有 bytes 属性）
       final Uint8List bytes = await pf.readAsBytes();
 
-      // 4. 确保 CloudBase 初始化 + 匿名登录
-      await TcbService.ensureReady();
+      // 4. 上传内部会向 SDK 会话要鉴权 token（未登录会抛「请先登录」）
+      //    （Day 24 改造：不再有独立的匿名登录预热步骤）
 
       // 5. 直传云存储（桶内 key 不含桶名，桶名由 TcbService 统一加）
-      final String key =
-          '${widget.classId}/${DateTime.now().millisecondsSinceEpoch}_${pf.name}';
+      //    key = "可读时间_原文件名"：时间部分用于防同名覆盖（同班先后传
+      //    同名文件，没前缀会互相覆盖），格式化成年月日-时分，控制台一眼可读
+      final DateTime now = DateTime.now();
+      final String stamp =
+          '${now.year}${_two(now.month)}${_two(now.day)}-${_two(now.hour)}${_two(now.minute)}';
+      final String key = '${widget.classId}/${stamp}_${pf.name}';
       final String contentType =
           _contentTypeOf(pf.extension?.toLowerCase() ?? 'bin');
       final String fileId =
@@ -125,6 +129,9 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
       if (mounted) setState(() => _uploading = false);
     }
   }
+
+  /// 补零：把 1~9 的数字变成 "01"~"09"（拼时间戳用）
+  String _two(int n) => n.toString().padLeft(2, '0');
 
   /// 按扩展名给 COS 一个正确的 Content-Type
   String _contentTypeOf(String ext) {

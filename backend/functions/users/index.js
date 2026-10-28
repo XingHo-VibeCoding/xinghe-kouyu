@@ -1,6 +1,14 @@
 // ============================================================
-// /api/users —— 用户接口（星禾口语 · Day 24 v4，账号系统对接）
+// /api/users —— 用户接口（星禾口语 · Day 24 v5，ApiKey 鉴权 + username）
 // ------------------------------------------------------------
+// v5 变更（配套「关闭匿名登录」改造）：
+//   1. 鉴权换 ApiKey：原来靠匿名登录换临时 token（2小时过期，每次
+//      冷启动多一次登录往返），但产品决定关闭匿名登录，云函数必须
+//      有自己的身份。ApiKey 是官方给服务端的凭证：长期有效、管理员
+//      权限、官方明示严禁在客户端使用。密钥放云函数环境变量
+//      TCB_API_KEY，不进代码、不进 Git。
+//   2. POST 接受可选 username（注册时设置的登录用户名），upsert 落库；
+//      GET 查询结果里也带 username。目的：管理台能对上「uid ↔ 用户名」。
 // v4 变更：
 //   1. GET 支持 ?uid=xxx 查单个用户资料（App 登录后拉昵称/角色用）；
 //      仍保留 ?role= 列表查询。
@@ -13,7 +21,7 @@
 //   2. 表结构换 v2：users.id 是登录 uid（文本）、name → nickname
 //   3. 登记是「upsert」：同一个 uid 再登记就更新昵称/角色，不报错
 //      （用 PostgREST 的 on_conflict=id + resolution=merge-duplicates）
-// 环境变量：ENV_ID = 云开发环境 ID。
+// 环境变量：ENV_ID = 云开发环境 ID；TCB_API_KEY = 服务端 ApiKey。
 // ============================================================
 
 const http = require('http');
@@ -41,21 +49,20 @@ function request(url, options = {}, body = null) {
   });
 }
 
-// 设备 ID：云函数作为服务端匿名登录时的固定标识（查表管理员通行证）
-const DEVICE_ID = 'xinghe-cloudfunction-server';
+// ---------- 服务端鉴权：ApiKey（长期有效，管理员权限） ----------
+// 官方文档：https://docs.cloudbase.net/http-api/basic/access-token
+// 用法：Authorization: Bearer <ApiKey>，与原临时 token 完全同款，
+// 所以调用处不用改，只换「token 从哪来」。
+const API_KEY = process.env.TCB_API_KEY;
 
 async function getToken() {
-  const res = await request(`${GATEWAY}/auth/v1/signin/anonymously`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-device-id': DEVICE_ID, // 必填：缺了会报「请在请求头添加设备id」
-    },
-  }, '{}');
-  if (res.status !== 200 || !res.body || !res.body.access_token) {
-    throw new Error('匿名登录失败: HTTP ' + res.status + ' ' + JSON.stringify(res.body));
+  if (!API_KEY) {
+    throw new Error(
+      '环境变量 TCB_API_KEY 未配置（控制台 → API Key 管理创建，' +
+      '再配到本云函数的环境变量里，与 ENV_ID 同一位置）'
+    );
   }
-  return res.body.access_token;
+  return API_KEY; // 长期有效，无需登录/刷新
 }
 
 const server = http.createServer(async (req, res) => {
@@ -77,7 +84,7 @@ const server = http.createServer(async (req, res) => {
       const role = params.get('role'); // teacher / student
       const uid = params.get('uid');   // 查单个用户（App 登录后拉自己资料用）
 
-      let url = `${GATEWAY}/v1/rdb/rest/users?select=id,nickname,role,created_at&order=id.asc`;
+      let url = `${GATEWAY}/v1/rdb/rest/users?select=id,username,nickname,role,created_at&order=id.asc`;
       if (uid) {
         // 按 uid 精确查：返回数组（0 或 1 条），前端据「空数组」判断资料未完善
         url += `&id=eq.${encodeURIComponent(uid)}`;
@@ -110,6 +117,9 @@ const server = http.createServer(async (req, res) => {
         const uid = (payload.uid || '').trim();
         const nickname = (payload.nickname || '').trim();
         const role = (payload.role || '').trim();
+        // username 可选：注册时设置的登录用户名，来自 App 会话。
+        // 留空不报错（兼容旧客户端 / 老账号），有值就一并落库。
+        const username = (payload.username || '').trim();
 
         // 参数校验
         if (!uid) {
@@ -126,7 +136,10 @@ const server = http.createServer(async (req, res) => {
         }
 
         const token = await getToken();
-        // upsert：id 冲突时更新 nickname/role（同一设备重复登记不报错）
+        // upsert：id 冲突时更新资料（同一账号重复登记不报错）。
+        // username 只在有值时写入——避免空值把库里已有的用户名抹掉。
+        const upsertBody = { id: uid, nickname, role };
+        if (username) upsertBody.username = username;
         const result = await request(
           `${GATEWAY}/v1/rdb/rest/users?on_conflict=id`,
           {
@@ -137,7 +150,7 @@ const server = http.createServer(async (req, res) => {
               Prefer: 'resolution=merge-duplicates,return=representation',
             },
           },
-          JSON.stringify({ id: uid, nickname, role })
+          JSON.stringify(upsertBody)
         );
 
         if (result.status !== 201 && result.status !== 200) {

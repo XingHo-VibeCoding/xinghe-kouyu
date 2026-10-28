@@ -36,9 +36,32 @@ class _HomeShellState extends State<HomeShell> {
 
   /// 班级栏：按「登录态 + 资料态」三态渲染
   Widget _buildClassTab(UserStore userStore) {
+    // 启动引导中：登录态还没确认完。此时显示加载态而不是「请先登录」，
+    // 否则冷启动会先闪一下登录引导再跳走（Day 24 修 BUG）。
+    if (userStore.booting) return _buildLoading();
+
     if (!userStore.isSignedIn) return const LoginRequiredView();
+
+    // 已登录、正在向云端确认资料：显示加载态。
+    // 不能在这里先渲染完善资料页——网络慢时会闪一下「还差一步」，
+    // 让资料齐全的老用户以为身份丢了（Day 24 修 BUG）。
+    if (!userStore.profileReady && userStore.profileLoading) {
+      return _buildLoading();
+    }
+
     if (!userStore.profileReady) return const ProfileSetupPage();
     return const ClassListPage();
+  }
+
+  /// 轻量加载态（居中细圈，避免整页白屏让人觉得卡死）
+  Widget _buildLoading() {
+    return const Center(
+      child: SizedBox(
+        width: 22,
+        height: 22,
+        child: CircularProgressIndicator(strokeWidth: 2, color: kTeal),
+      ),
+    );
   }
 
   @override
@@ -103,11 +126,7 @@ class _HomeShellState extends State<HomeShell> {
               color: selected ? kTealSoft : Colors.transparent,
               borderRadius: BorderRadius.circular(15),
             ),
-            child: Icon(
-              icon,
-              size: 22,
-              color: selected ? kTeal : kTextHint,
-            ),
+            child: Icon(icon, size: 22, color: selected ? kTeal : kTextHint),
           ),
           const SizedBox(height: 3),
           AnimatedDefaultTextStyle(

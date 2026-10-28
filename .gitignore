@@ -7,6 +7,9 @@
 # 依赖目录（Day 7 安装依赖后出现，体积巨大，从不上传）
 node_modules/
 
+# 第三方技能包（Day 24 下载的 UI/UX 设计技能，23MB，只是本地工具，不属于本项目源码）
+ui-ux-pro-max-skill-*/
+
 # 系统自动生成的垃圾文件
 Thumbs.db
 .DS_Store

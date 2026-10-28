@@ -10,9 +10,13 @@
 //      没做这一步，所以这里不用 SDK 的 storage，改为直接走 HTTP。
 //   3. RLS：storage.objects 表默认全拒，已配 public_select / public_insert 策略。
 //
-// 认证：
-//   - accessKey 是「Publishable Key（可发布密钥）」，角色 anon，可安全写进 App。
-//   - 匿名登录拿 access_token 当鉴权头。
+// 认证（Day 24 改造：不再匿名登录）：
+//   - 云端即将关闭「匿名登录」，文件上传/下载改用当前登录账号的
+//     会话 token（从 SDK 会话取，过期由 SDK 自动续期）。
+//   - 上传/下载只发生在班级页，而班级页未登录进不去，所以走到这里
+//     一定已有会话；万一没有，报错由上层提示「请先登录」。
+//   - accessKey 是「Publishable Key（可发布密钥）」，角色 anon，可安全写进 App
+//     （它只是网关的「门牌号」，真正鉴权靠 Bearer token）。
 // =====================================================================
 
 import 'dart:typed_data';
@@ -35,7 +39,6 @@ class TcbService {
   TcbService._();
 
   static CloudBase? _app;
-  static String? _accessToken; // 匿名登录拿到的会话 token
 
   static String get _gateway => 'https://$kTcbEnvId.api.tcloudbasegateway.com';
 
@@ -53,19 +56,21 @@ class TcbService {
     return _app!;
   }
 
-  /// 初始化 + 匿名登录（幂等：重复调用不重复做）
-  static Future<void> ensureReady() async {
-    if (_accessToken != null) return;
-
-    // 用 SDK 做初始化 + 匿名登录，拿到会话 token（SDK 的登录是好的，只有 storage 有 bug）
+  /// 拿当前会话的鉴权 token（每次调用都重新向 SDK 要）
+  ///
+  /// 为什么不缓存：access_token 只有 2 小时有效期，缓存的话 App 挂机
+  /// 超过 2 小时再上传就会拿着过期 token 撞 401。SDK 的 getSession()
+  /// 会自动检查过期并续期，每次问它要最稳；本地校验无网络开销。
+  ///
+  /// Day 24 起不再走匿名登录（云端已决定关闭），必须有登录会话。
+  static Future<String> _sessionToken() async {
     final CloudBase cloud = await app();
-    final result = await cloud.auth.signInAnonymously();
-    if (!result.isSuccess) {
-      throw Exception('匿名登录失败: ${result.error?.message}');
+    final SignInRes res = await cloud.auth.getSession();
+    final String? token = res.data?.session?.accessToken;
+    if (res.error != null || token == null || token.isEmpty) {
+      throw Exception('请先登录后再使用班级文件功能');
     }
-    // 从登录结果里取会话 access token（后续自己走 HTTP 时当 Authorization）
-    _accessToken =
-        result.data?.session?.accessToken ?? kTcbAccessKey;
+    return token;
   }
 
   /// 统一的超时配置（不加超时的请求一旦挂起，界面会永远转圈）
@@ -79,14 +84,14 @@ class TcbService {
 
   /// 直传文件到云存储（PG 桶模型，完全走 HTTP，绕开 SDK storage 的 signedHeader bug）
   ///
-  /// 流程：匿名登录拿 token → get-objects-upload-info（带 signedHeader）
+  /// 流程：取账号会话 token → get-objects-upload-info（带 signedHeader）
   ///       → PUT 字节到 COS uploadUrl → 返回 fileID（cloud://...）
   static Future<String> uploadBytes(
     String key, // 桶内的文件 key（不含桶名）
     Uint8List bytes, {
     String contentType = 'application/octet-stream',
   }) async {
-    await ensureReady();
+    final String token = await _sessionToken();
 
     final dio = dio_pkg.Dio();
 
@@ -105,7 +110,7 @@ class TcbService {
         },
       ],
       options: _opts(headers: <String, dynamic>{
-        'Authorization': 'Bearer $_accessToken',
+        'Authorization': 'Bearer $token',
         'x-device-id': 'xinghe-flutter-app',
       }),
     );
@@ -118,7 +123,7 @@ class TcbService {
 
     final String uploadUrl = info['uploadUrl'] as String;
     final String? authorization = info['authorization'] as String?;
-    final String? token = info['token'] as String?;
+    final String? cosToken = info['token'] as String?; // COS 临时凭证（与上面会话 token 是两回事）
 
     // 2. 直传 COS（PUT 字节数组，dio 自动带 Content-Length）
     await dio.put<void>(
@@ -128,7 +133,7 @@ class TcbService {
         headers: <String, dynamic>{
           'Content-Type': contentType,
           'Authorization': ?authorization,
-          'x-cos-security-token': ?token,
+          'x-cos-security-token': ?cosToken,
         },
         sendTimeout: const Duration(minutes: 5),
         receiveTimeout: const Duration(minutes: 5),
@@ -145,7 +150,7 @@ class TcbService {
   /// 但 download-info 接口要求带桶 ID 后缀的 `cloud://envId.<桶ID>/桶/key`，
   /// 这里做字符串转换后调接口，返回带签名的直接下载链接。
   static Future<String> getDownloadUrl(String cloudPath) async {
-    await ensureReady();
+    final String token = await _sessionToken();
 
     // 转成带桶 ID 后缀的 cloudObjectId
     final String cloudObjectId = cloudPath.replaceFirst(
@@ -161,7 +166,7 @@ class TcbService {
         <String, String>{'cloudObjectId': cloudObjectId},
       ],
       options: _opts(headers: <String, dynamic>{
-        'Authorization': 'Bearer $_accessToken',
+        'Authorization': 'Bearer $token',
         'x-device-id': 'xinghe-flutter-app',
       }),
     );
