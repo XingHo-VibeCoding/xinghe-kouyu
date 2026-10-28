@@ -39,17 +39,27 @@ class TcbService {
 
   static String get _gateway => 'https://$kTcbEnvId.api.tcloudbasegateway.com';
 
-  /// 初始化 + 匿名登录（幂等：重复调用不重复做）
-  static Future<void> ensureReady() async {
-    if (_accessToken != null) return;
-
-    // 用 SDK 做初始化 + 匿名登录，拿到会话 token（SDK 的登录是好的，只有 storage 有 bug）
+  /// 拿共享的 CloudBase 应用实例（懒初始化，只 init 不登录）
+  ///
+  /// Day 24 起账号服务（AuthService）也用这个实例——全 App 只有一个
+  /// CloudBase 实例，会话（含登录态）只有一份，避免两个实例的本地会话
+  /// 互相覆盖（SDK 的会话持久化按环境 ID 存，同环境共用一份）。
+  static Future<CloudBase> app() async {
     _app ??= await CloudBase.init(
       env: kTcbEnvId,
       region: 'ap-shanghai',
       accessKey: kTcbAccessKey,
     );
-    final result = await _app!.auth.signInAnonymously();
+    return _app!;
+  }
+
+  /// 初始化 + 匿名登录（幂等：重复调用不重复做）
+  static Future<void> ensureReady() async {
+    if (_accessToken != null) return;
+
+    // 用 SDK 做初始化 + 匿名登录，拿到会话 token（SDK 的登录是好的，只有 storage 有 bug）
+    final CloudBase cloud = await app();
+    final result = await cloud.auth.signInAnonymously();
     if (!result.isSuccess) {
       throw Exception('匿名登录失败: ${result.error?.message}');
     }

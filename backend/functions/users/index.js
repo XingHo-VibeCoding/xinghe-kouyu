@@ -1,11 +1,16 @@
 // ============================================================
-// /api/users —— 用户接口（星禾口语 · Day 20 v3，班级管理 MVP）
+// /api/users —— 用户接口（星禾口语 · Day 24 v4，账号系统对接）
 // ------------------------------------------------------------
+// v4 变更：
+//   1. GET 支持 ?uid=xxx 查单个用户资料（App 登录后拉昵称/角色用）；
+//      仍保留 ?role= 列表查询。
+//   2. 背景：登录（身份认证）只给 uid，昵称和角色在 users 表里，
+//      资料没查到 = 该账号还没登记，前端据此引导「完善资料」。
 // v3 变更：
 //   1. 支持两种方法：
 //      GET  ?role=teacher/student      → 用户列表（可选按角色过滤）
 //      POST { uid, nickname, role }    → 登记身份（首次进入填昵称+角色）
-//   2. 表结构换 v2：users.id 是匿名登录 uid（文本）、name → nickname
+//   2. 表结构换 v2：users.id 是登录 uid（文本）、name → nickname
 //   3. 登记是「upsert」：同一个 uid 再登记就更新昵称/角色，不报错
 //      （用 PostgREST 的 on_conflict=id + resolution=merge-duplicates）
 // 环境变量：ENV_ID = 云开发环境 ID。
@@ -66,13 +71,17 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    // ---------- GET：用户列表（可选按角色过滤） ----------
+    // ---------- GET：查用户资料（单个 或 按角色列表） ----------
     if (req.method === 'GET') {
       const params = new URL(req.url, 'http://localhost').searchParams;
       const role = params.get('role'); // teacher / student
+      const uid = params.get('uid');   // 查单个用户（App 登录后拉自己资料用）
 
       let url = `${GATEWAY}/v1/rdb/rest/users?select=id,nickname,role,created_at&order=id.asc`;
-      if (role === 'teacher' || role === 'student') {
+      if (uid) {
+        // 按 uid 精确查：返回数组（0 或 1 条），前端据「空数组」判断资料未完善
+        url += `&id=eq.${encodeURIComponent(uid)}`;
+      } else if (role === 'teacher' || role === 'student') {
         url += `&role=eq.${role}`;
       }
 

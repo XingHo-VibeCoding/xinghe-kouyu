@@ -19,7 +19,8 @@ import 'package:http/http.dart' as http;
 import '../models/class_file.dart';
 import '../models/class_item.dart';
 import '../models/class_member.dart';
-import '../store/user_store.dart';
+import '../models/user_profile.dart';
+import '../models/user_role.dart';
 
 /// 后端基础地址（云函数 HTTP 访问服务，见 api-contract.md 1.2）
 const String kApiBase =
@@ -89,6 +90,9 @@ class ApiClient {
   // ------------------------------------------------------------------
 
   /// 登记身份：首次进入填昵称+角色后，同步到云端 users 表
+  ///
+  /// 云端是 upsert（同一 uid 重复登记 = 更新），所以「登记」和「改昵称」
+  /// 共用这一个接口。
   Future<ApiResult<void>> registerUser(
       String uid, String nickname, UserRole role) async {
     final Map<String, dynamic> r = await _postJson('/users', {
@@ -98,6 +102,29 @@ class ApiClient {
     });
     if (r['code'] == 0) return ApiResult.success(null);
     return ApiResult.fail(r['message']?.toString() ?? '登记失败');
+  }
+
+  /// 查「本账号在 users 表的资料」（昵称 + 角色）。
+  ///
+  /// 返回 null 表示云端没有这个 uid 的记录 = 资料未完善。
+  /// 登录后必须调一次：认证只告诉我们 uid，昵称和角色只有这张表知道。
+  ///
+  /// 注意：这里按 id 精确匹配，不能取 list.first。原因——如果云函数还没
+  /// 部署「?uid=」新版本，后端会忽略该参数返回全部用户，取 first 就会把
+  /// 别人的昵称和角色当成自己的（把学生显示成老师，权限全乱）。
+  Future<ApiResult<UserProfile?>> fetchUser(String uid) async {
+    final Map<String, dynamic> r = await _getJson('/users', {'uid': uid});
+    if (r['code'] != 0) {
+      return ApiResult.fail(r['message']?.toString() ?? '查询资料失败');
+    }
+    final List<dynamic> list = (r['data'] as List<dynamic>? ?? const []);
+    for (final dynamic item in list) {
+      final Map<String, dynamic> row = item as Map<String, dynamic>;
+      if (row['id']?.toString() == uid) {
+        return ApiResult.success(UserProfile.fromJson(row));
+      }
+    }
+    return ApiResult.success(null); // 云端确实没有这个 uid
   }
 
   /// 老师建班：返回新班级（含班级码）

@@ -32,8 +32,8 @@ class XingheApp extends StatelessWidget {
   Widget build(BuildContext context) {
     // 用 MultiProvider 挂多个全局状态：
     //   MaterialStore —— 素材仓库（播放器数据）
-    //   UserStore     —— 设备身份（uid / 昵称 / 角色）
     //   ApiClient     —— 后端接口客户端（Provider 提供，方便测试替换）
+    //   UserStore     —— 身份 + 云端资料（依赖 ApiClient，故声明在其后）
     //   ClassStore    —— 班级仓库（依赖 ApiClient，uid 由页面调用时传入）
     return MultiProvider(
       providers: [
@@ -44,15 +44,16 @@ class XingheApp extends StatelessWidget {
             return store;
           },
         ),
+        // ApiClient 是普通类（非 ChangeNotifier），用 Provider 提供单一实例。
+        // 必须排在 UserStore 前面：UserStore 要用它拉 users 表资料。
+        Provider<ApiClient>(create: (_) => ApiClient()),
         ChangeNotifierProvider(
-          create: (_) {
-            final UserStore store = UserStore();
-            store.load(); // 启动时读本地身份，首次则生成 uid
+          create: (BuildContext ctx) {
+            final UserStore store = UserStore(api: ctx.read<ApiClient>());
+            store.load(); // 启动：读本地身份 → 确认登录态 → 拉云端资料
             return store;
           },
         ),
-        // ApiClient 是普通类（非 ChangeNotifier），用 Provider 提供单一实例
-        Provider<ApiClient>(create: (_) => ApiClient()),
         // ClassStore 依赖 ApiClient，用 ProxyProvider 把 api 实例注入进去
         ChangeNotifierProxyProvider<ApiClient, ClassStore>(
           create: (_) => ClassStore(api: ApiClient()),

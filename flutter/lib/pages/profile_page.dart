@@ -6,8 +6,9 @@
 //
 // 保留的真实逻辑：
 //   - 点击头部（昵称/头像）→ 弹登记弹窗（昵称 + 身份），本地保存 + 同步云端；
-//   - 长按昵称 → 复制设备 uid（联调用，藏在长按里，不破坏 1:1 视觉）。
-//   - 六个菜单项点击均为占位提示，后续接真实功能。
+//   - 长按昵称 → 复制当前 uid（联调用，藏在长按里，不破坏 1:1 视觉）；
+//   - 账号区（Day 24）：未登录显示「登录 / 注册」，已登录显示「退出登录」；
+//   - 其余菜单项点击均为占位提示，后续接真实功能。
 // =====================================================================
 
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ import '../net/api_client.dart';
 import '../store/class_store.dart';
 import '../store/user_store.dart';
 import '../utils/design_tokens.dart';
+import 'login_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -34,10 +36,20 @@ class ProfilePage extends StatelessWidget {
             // ---------- 青绿渐变头部 ----------
             _buildHeader(context, userStore),
             // ---------- 菜单卡片（白色圆角，上移遮住渐变底部） ----------
-            Transform.translate(
+              Transform.translate(
               offset: const Offset(0, -20),
               child: Column(
                 children: <Widget>[
+                  // ---------- 账号区（Day 24）：随登录态切换 ----------
+                  _menuGroup(context, <_MenuItem>[
+                    if (userStore.isSignedIn)
+                      _MenuItem(Icons.logout, '退出登录',
+                          onTap: (BuildContext ctx) => _confirmSignOut(ctx))
+                    else
+                      const _MenuItem(Icons.account_circle_outlined, '登录 / 注册',
+                          onTap: _openLoginPage),
+                  ]),
+                  const SizedBox(height: 12),
                   _menuGroup(context, <_MenuItem>[
                     const _MenuItem(Icons.inventory_2_outlined, '资源库'),
                     const _MenuItem(Icons.person_outline, '我的关注'),
@@ -138,7 +150,7 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  /// 单行菜单：线性图标 + 标题 + 右箭头；点击均为占位提示
+  /// 单行菜单：线性图标 + 标题 + 右箭头；有 onTap 走真实逻辑，否则占位提示
   Widget _menuRow(BuildContext context, _MenuItem item) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
@@ -150,6 +162,10 @@ class ProfilePage extends StatelessWidget {
       trailing:
           const Icon(Icons.chevron_right, size: 22, color: Color(0xFFCCCCCC)),
       onTap: () {
+        if (item.onTap != null) {
+          item.onTap!(context);
+          return;
+        }
         // 占位：后续接各菜单的真实功能
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${item.label} 功能开发中')),
@@ -158,19 +174,68 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  /// 长按昵称：复制设备 uid（联调用）
-  void _copyUid(BuildContext context, UserStore userStore) {
-    Clipboard.setData(ClipboardData(text: userStore.uid));
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('设备 uid 已复制')));
+  /// 打开登录页（Day 24：账号入口，登录页里可跳注册页）
+  static void _openLoginPage(BuildContext context) {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => const LoginPage()));
   }
 
-  /// 登记弹窗：昵称 + 身份单选，确认后本地保存 + 同步云端（原逻辑保留）
-  /// 新增：已有班级记录时，身份不可改（锁定），只允许改昵称。
+  /// 退出登录：先确认，再清云端会话
+  ///
+  /// 只清「登录态」，不清本地数据——昵称、角色、素材库、播放进度全部保留，
+  /// 退出后自动回落成游客（用设备 uid），班级栏变成登录引导页。
+  static Future<void> _confirmSignOut(BuildContext context) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext ctx) => AlertDialog(
+        title: const Text('退出登录'),
+        content: const Text('退出后「班级」需要重新登录才能使用。\n本地素材、播放进度和昵称都会保留。'),
+        actions: <Widget>[
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: kTeal),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('退出'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    await context.read<UserStore>().signOut();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('已退出登录')));
+  }
+
+  /// 长按昵称：复制当前身份 uid（联调用；已登录 = 账号 uid，游客 = 设备 uid）
+  void _copyUid(BuildContext context, UserStore userStore) {
+    Clipboard.setData(ClipboardData(text: userStore.uid));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(userStore.isSignedIn ? '账号 uid 已复制' : '设备 uid 已复制（游客态）'),
+    ));
+  }
+
+  /// 登记弹窗：昵称 + 身份单选，**先写云端、成功后才更新本地**
+  /// 已有班级记录时，身份不可改（锁定），只允许改昵称。
   Future<void> _showRegisterDialog(
       BuildContext context, UserStore userStore) async {
+    // 游客态：昵称/角色是「账号资料」，存在云端 users 表，先登录才有归属
+    if (!userStore.isSignedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('登录后才能设置昵称和身份')),
+      );
+      _openLoginPage(context);
+      return;
+    }
+
     final TextEditingController controller =
         TextEditingController(text: userStore.nickname);
+    // 初始角色以云端为准（userStore.role 已从 users 表同步）。
+    // 注意：不能在这里用"本地没值就当学生"兜底——那正是老师换设备
+    // 登录后被降级成学生的原因。
     UserRole selectedRole = userStore.role ?? UserRole.student;
 
     // 先查「我是否已有班级记录」：有则锁定身份，不能再改老师/学生
@@ -193,7 +258,9 @@ class ProfilePage extends StatelessWidget {
                   TextField(
                     controller: controller,
                     autofocus: true,
-                    decoration: const InputDecoration(hintText: '昵称'),
+                    maxLength: 20,
+                    decoration: const InputDecoration(
+                        hintText: '昵称', counterText: ''),
                   ),
                   const SizedBox(height: 16),
                   // 身份锁定提示
@@ -270,16 +337,16 @@ class ProfilePage extends StatelessWidget {
       return;
     }
 
-    // 1. 本地保存身份（身份锁定时 selectedRole 仍是原角色，不会误改）
-    await userStore.register(nickname: nickname, role: selectedRole);
-
-    // 2. 同步到云端（失败不阻断本地，仅提示）
-    if (!context.mounted) return;
-    final ApiClient api = context.read<ApiClient>();
-    final result = await api.registerUser(userStore.uid, nickname, selectedRole);
+    // 保存：先云端成功、再更新本地
+    // （顺序不能反：先写本地的话，云端一失败就出现「App 认为你是老师、
+    //   数据库里没你这人」的分裂状态，要到建班时才暴露）
+    final ApiResult<void> result = await userStore.saveProfile(
+      nickname: nickname,
+      role: selectedRole,
+    );
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(result.ok ? '保存成功' : '云端同步失败：${result.message}')),
+      SnackBar(content: Text(result.ok ? '保存成功' : '保存失败：${result.message}')),
     );
   }
 
@@ -330,9 +397,10 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
-/// 菜单项数据
+/// 菜单项数据（onTap 非空 = 有真实逻辑的菜单项）
 class _MenuItem {
   final IconData icon;
   final String label;
-  const _MenuItem(this.icon, this.label);
+  final void Function(BuildContext)? onTap;
+  const _MenuItem(this.icon, this.label, {this.onTap});
 }

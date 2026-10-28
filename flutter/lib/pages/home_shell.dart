@@ -3,15 +3,26 @@
 // ---------------------------------------------------------------------
 // 结构：IndexedStack 装四个页面（切 tab 不丢状态）+ 自绘底部导航条
 //       （首页 | 班级 | 播放 | 我的，选中态青绿胶囊 + 填充图标）
+//
+// 登录门槛（Day 24，PRD 3.7.1）：「班级」栏需要「登录 + 云端资料就绪」
+//   状态 1：未登录            → LoginRequiredView（登录引导）
+//   状态 2：已登录、资料未完善 → ProfileSetupPage（填昵称 + 选身份）
+//   状态 3：都就绪            → ClassListPage（真正的班级列表）
+//   三个状态全靠 UserStore 通知自动切换，不需要手动跳转——
+//   登录成功后从状态 1 走到 2 或 3，登出后自动退回 1。
 // =====================================================================
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../store/user_store.dart';
 import '../utils/design_tokens.dart';
 import 'class_list_page.dart';
 import 'home_page.dart';
+import 'login_required_view.dart';
 import 'material_list_page.dart';
 import 'profile_page.dart';
+import 'profile_setup_page.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -23,18 +34,27 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
-  static const List<Widget> _pages = <Widget>[
-    HomePage(),
-    ClassListPage(),
-    MaterialListPage(),
-    ProfilePage(),
-  ];
+  /// 班级栏：按「登录态 + 资料态」三态渲染
+  Widget _buildClassTab(UserStore userStore) {
+    if (!userStore.isSignedIn) return const LoginRequiredView();
+    if (!userStore.profileReady) return const ProfileSetupPage();
+    return const ClassListPage();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final UserStore userStore = context.watch<UserStore>();
     return Scaffold(
       // IndexedStack：四个页面都常驻内存，切 tab 不丢各自状态
-      body: IndexedStack(index: _index, children: _pages),
+      body: IndexedStack(
+        index: _index,
+        children: <Widget>[
+          const HomePage(),
+          _buildClassTab(userStore),
+          const MaterialListPage(),
+          const ProfilePage(),
+        ],
+      ),
       bottomNavigationBar: _buildBottomNav(),
     );
   }
