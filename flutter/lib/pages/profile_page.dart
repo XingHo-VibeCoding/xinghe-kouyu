@@ -49,13 +49,13 @@ class ProfilePage extends StatelessWidget {
                       const _MenuItem(Icons.account_circle_outlined, '登录 / 注册',
                           onTap: _openLoginPage),
                   ]),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: kSpaceSM),
                   _menuGroup(context, <_MenuItem>[
                     const _MenuItem(Icons.inventory_2_outlined, '资源库'),
                     const _MenuItem(Icons.person_outline, '我的关注'),
                     const _MenuItem(Icons.star_outline, '我的收藏'),
                   ]),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: kSpaceSM),
                   _menuGroup(context, <_MenuItem>[
                     const _MenuItem(Icons.chat_bubble_outline, '反馈'),
                     const _MenuItem(Icons.help_outline, '帮助中心'),
@@ -76,19 +76,19 @@ class ProfilePage extends StatelessWidget {
       height: 230,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: <Color>[Color(0xFF56C3E0), Color(0xFF2FBFAF)],
+          colors: <Color>[kTeal, kTealDark],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),
         // 底部圆角让白色卡片有「叠上来」的层次
         borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
+          bottomLeft: Radius.circular(kRadiusBtn),
+          bottomRight: Radius.circular(kRadiusBtn),
         ),
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(horizontal: kSpaceLG),
           child: Row(
             children: <Widget>[
               // 昵称：点击 = 登记/修改；长按 = 复制 uid
@@ -97,12 +97,15 @@ class ProfilePage extends StatelessWidget {
                   onTap: () => _showRegisterDialog(context, userStore),
                   onLongPress: () => _copyUid(context, userStore),
                   behavior: HitTestBehavior.opaque,
-                  child: Text(
-                    userStore.nickname.isEmpty ? '点击登记' : userStore.nickname,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: kSpaceXS),
+                    child: Text(
+                      userStore.nickname.isEmpty ? '点击登记' : userStore.nickname,
+                      style: const TextStyle(
+                        fontSize: kFontDisplay,
+                        fontWeight: kWeightBold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -118,7 +121,7 @@ class ProfilePage extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.person,
-                      size: 44, color: Color(0xFFDDDDDD)),
+                      size: 44, color: kTextHint, semanticLabel: '修改头像'),
                 ),
               ),
             ],
@@ -131,7 +134,7 @@ class ProfilePage extends StatelessWidget {
   /// 一组菜单（白色圆角卡片包住若干行）
   Widget _menuGroup(BuildContext context, List<_MenuItem> items) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.symmetric(horizontal: kSpaceMD),
       child: Material(
         // 用 Material 提供白底（不用 Container 的 BoxDecoration）：
         // ListTile 的背景和水波纹画在最近的 Material 祖先上，
@@ -153,14 +156,14 @@ class ProfilePage extends StatelessWidget {
   /// 单行菜单：线性图标 + 标题 + 右箭头；有 onTap 走真实逻辑，否则占位提示
   Widget _menuRow(BuildContext context, _MenuItem item) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-      leading: Icon(item.icon, size: 24, color: kTextSecondary),
+      contentPadding: const EdgeInsets.symmetric(horizontal: kSpaceLG, vertical: kSpaceXXS),
+      leading: Icon(item.icon, size: kIconMD, color: kTextSecondary),
       title: Text(
         item.label,
-        style: const TextStyle(fontSize: 15, color: Color(0xFF333333)),
+        style: const TextStyle(fontSize: kFontTitle, color: kTextPrimary),
       ),
       trailing:
-          const Icon(Icons.chevron_right, size: 22, color: Color(0xFFCCCCCC)),
+          const Icon(Icons.chevron_right, size: kIconSM, color: kTextHint),
       onTap: () {
         if (item.onTap != null) {
           item.onTap!(context);
@@ -262,21 +265,21 @@ class ProfilePage extends StatelessWidget {
                     decoration: const InputDecoration(
                         hintText: '昵称', counterText: ''),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: kSpaceMD),
                   // 身份锁定提示
                   if (roleLocked)
                     const Padding(
-                      padding: EdgeInsets.only(bottom: 8),
+                      padding: EdgeInsets.only(bottom: kSpaceXS),
                       child: Row(
                         children: <Widget>[
                           Icon(Icons.lock_outline,
-                              size: 14, color: Color(0xFF999999)),
-                          SizedBox(width: 4),
+                              size: kIconXS, color: kTextHint),
+                          SizedBox(width: kSpaceXXS),
                           Expanded(
                             child: Text(
                               '你已有班级记录，身份已锁定不可修改',
                               style: TextStyle(
-                                  fontSize: 12, color: Color(0xFF999999)),
+                                  fontSize: kFontCaption, color: kTextHint),
                             ),
                           ),
                         ],
@@ -296,7 +299,7 @@ class ProfilePage extends StatelessWidget {
                               setState(() => selectedRole = UserRole.teacher),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: kSpaceSM),
                       Expanded(
                         child: _roleChip(
                           ctx,
@@ -362,14 +365,14 @@ class ProfilePage extends StatelessWidget {
     final bool effective = enabled && selected;
     return InkWell(
       onTap: enabled ? onTap : null,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(kRadiusSM),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: kSpaceSM),
         decoration: BoxDecoration(
           color: effective ? kTeal : Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(kRadiusSM),
           border: Border.all(
-            color: effective ? kTeal : (enabled ? Colors.black26 : Colors.black12),
+            color: effective ? kTeal : kBorder,
           ),
         ),
         child: Column(
@@ -378,16 +381,16 @@ class ProfilePage extends StatelessWidget {
               icon,
               color: effective
                   ? Colors.white
-                  : (enabled ? Colors.black54 : Colors.black26),
+                  : (enabled ? kTextSecondary : kTextHint),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: kSpaceXS),
             Text(
               label,
               style: TextStyle(
                 color: effective
                     ? Colors.white
-                    : (enabled ? Colors.black87 : Colors.black26),
-                fontWeight: FontWeight.w600,
+                    : (enabled ? kTextPrimary : kTextHint),
+                fontWeight: kWeightMedium,
               ),
             ),
           ],

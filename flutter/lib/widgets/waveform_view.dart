@@ -1,5 +1,5 @@
 // =====================================================================
-// 波形组件（F12 时域图）：播放头固定居中 + 拨动即定位 + AB 金色手柄
+// 波形组件（F12 时域图）：播放头固定居中 + 拨动即定位 + AB 珊瑚橙手柄
 // ---------------------------------------------------------------------
 // 职责边界（很重要）：
 //   这个组件**不持有播放器、不认识 just_audio**。它只接收
@@ -36,6 +36,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:just_waveform/just_waveform.dart';
+import '../utils/design_tokens.dart';
 
 /// 波形区状态
 enum WaveformStatus {
@@ -465,7 +466,7 @@ class _WaveformViewState extends State<WaveformView> {
     return SizedBox(
       height: widget.height,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
+        padding: const EdgeInsets.symmetric(horizontal: kSpaceXL),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
@@ -475,17 +476,17 @@ class _WaveformViewState extends State<WaveformView> {
                 // 进度为 0 时显示「无限滚动」，避免一直停在 0% 像卡死
                 value: widget.progress > 0 ? widget.progress : null,
                 minHeight: 3,
-                backgroundColor: const Color(0xFF5B8FC9)
+                backgroundColor: kTeal
                     .withValues(alpha: 0.15),
                 valueColor: const AlwaysStoppedAnimation<Color>(
-                  Color(0xFF4A7EB8),
+                  kTeal,
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: kSpaceXS),
             Text(
               pct > 0 ? '正在生成波形 $pct%' : '正在生成波形…',
-              style: const TextStyle(fontSize: 11, color: Colors.black54),
+              style: const TextStyle(fontSize: kFontCaption, color: kTextSecondary),
             ),
           ],
         ),
@@ -499,20 +500,20 @@ class _WaveformViewState extends State<WaveformView> {
       child: Center(
         child: InkWell(
           onTap: widget.onRetry,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(kRadiusXS),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: kSpaceSM, vertical: kSpaceMD),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                const Icon(Icons.refresh, size: 16, color: Colors.black54),
-                const SizedBox(width: 6),
+                const Icon(Icons.refresh, size: kIconXS, color: kTextSecondary),
+                const SizedBox(width: kSpaceXS),
                 Text(
                   // 说明「不影响听」：波形只是辅助，别让用户以为播放坏了
                   '波形无法生成 · 点此重试（不影响播放）',
                   style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.black.withValues(alpha: 0.6),
+                    fontSize: kFontCaption,
+                    color: kTextSecondary,
                   ),
                 ),
               ],
@@ -627,9 +628,9 @@ class _WaveformPainter extends CustomPainter {
 
   final _GestureMode mode;
 
-  static const Color _played = Color(0xFF4A7EB8);
-  static const Color _unplayed = Color(0xFF5B8FC9);
-  static const Color _gold = Color(0xFFE8A33D);
+  static const Color _played = kTeal;
+  static const Color _unplayed = kTeal;
+  static const Color _gold = kCoral;
 
   /// 秒刻度文字缓存（key = 显示文本，样式固定）。
   ///
@@ -647,7 +648,7 @@ class _WaveformPainter extends CustomPainter {
       text: TextSpan(
         text: text,
         style: TextStyle(
-          fontSize: 9,
+          fontSize: kFontMicro,
           color: Colors.black.withValues(alpha: 0.42),
         ),
       ),
@@ -697,7 +698,7 @@ class _WaveformPainter extends CustomPainter {
       );
     }
 
-    // ---- 1. AB 区间淡蓝底（裁到窗口内）----
+    // ---- 1. AB 区间淡青绿底（裁到窗口内）----
     final double? ax = pointA == null ? null : xOf(pointA!);
     final double? bx = pointB == null ? null : xOf(pointB!);
     if (ax != null && bx != null && bx > ax) {
@@ -777,7 +778,7 @@ class _WaveformPainter extends CustomPainter {
     );
     canvas.drawCircle(Offset(playX, waveTop + 2), 3, Paint()..color = _played);
 
-    // ---- 4. A / B 金色手柄：窗口内的画手柄，窗口外的画边缘小箭头 ----
+    // ---- 4. A / B 珊瑚橙手柄：窗口内的画手柄，窗口外的画边缘小箭头 ----
     if (pointA != null) _paintHandleOrArrow(canvas, pointA!, xOf, size, 'A');
     if (pointB != null) _paintHandleOrArrow(canvas, pointB!, xOf, size, 'B');
 
@@ -829,7 +830,7 @@ class _WaveformPainter extends CustomPainter {
       return;
     }
 
-    // 窗口外：在对应一侧画一个 5px 金色小三角，告诉你「A/B 在那边」
+    // 窗口外：在对应一侧画一个 5px 珊瑚橙小三角，告诉你「A/B 在那边」
     final bool isLeft = seconds < windowStart;
     final double x = isLeft ? left + 1 : right - 1;
     final double y = tickHeight + (size.height - tickHeight) / 2;
@@ -848,7 +849,7 @@ class _WaveformPainter extends CustomPainter {
     canvas.drawPath(p, Paint()..color = _gold.withValues(alpha: 0.85));
   }
 
-  /// 手柄：金色竖条 + 顶部小圆角标签（写 A / B，肉眼一眼分得清）
+  /// 手柄：珊瑚橙竖条 + 顶部小圆角标签（写 A / B，肉眼一眼分得清）
   void _paintHandle(
     Canvas canvas,
     double x,
@@ -873,8 +874,8 @@ class _WaveformPainter extends CustomPainter {
         text: label,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
+          fontSize: kFontMicro,
+          fontWeight: kWeightBold,
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -896,7 +897,7 @@ class _WaveformPainter extends CustomPainter {
 
     final RRect r = RRect.fromRectAndRadius(
       Rect.fromLTWH(bx, top + 1, bw, bh),
-      const Radius.circular(9),
+      const Radius.circular(kRadiusXS),
     );
     canvas.drawRRect(r, Paint()..color = _gold.withValues(alpha: 0.92));
 
@@ -905,8 +906,8 @@ class _WaveformPainter extends CustomPainter {
         text: _fmt(seconds, tenths: true),
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
+          fontSize: kFontCaption,
+          fontWeight: kWeightMedium,
         ),
       ),
       textDirection: TextDirection.ltr,

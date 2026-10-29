@@ -20,6 +20,9 @@ import '../net/tcb_service.dart';
 import '../store/material_store.dart';
 import '../store/user_store.dart';
 import '../utils/design_tokens.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/error_state.dart';
+import '../widgets/skeleton_list.dart';
 
 class ClassFilesPage extends StatefulWidget {
   final String classId;
@@ -175,9 +178,9 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
       backgroundColor: kBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF333333),
+        foregroundColor: kTextPrimary,
         elevation: 0,
-        title: const Text('班级文件', style: TextStyle(fontSize: 17)),
+        title: const Text('班级文件', style: TextStyle(fontSize: kFontTitle)),
         // 上传入口：仅老师可见
         actions: <Widget>[
           if (isTeacher)
@@ -197,19 +200,19 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
               color: Colors.black26,
               alignment: Alignment.center,
               child: Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(kSpaceLG),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(kRadiusSM),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     const CircularProgressIndicator(color: kTeal),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: kSpaceSM),
                     Text(
                       _uploading ? '正在上传…' : '正在下载…',
-                      style: const TextStyle(fontSize: 14),
+                      style: const TextStyle(fontSize: kFontBody),
                     ),
                   ],
                 ),
@@ -221,47 +224,37 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
   }
 
   Widget _buildBody() {
+    final Widget child;
+    final String stateKey;
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: kTeal));
-    }
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Icon(Icons.error_outline, size: 64, color: Colors.orange),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(_error!,
-                  textAlign: TextAlign.center,
-                  style:
-                      const TextStyle(fontSize: 13, color: Color(0xFF999999))),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: kTeal),
-              onPressed: _load,
-              icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
-            ),
-          ],
-        ),
+      child = const SkeletonList();
+      stateKey = 'loading';
+    } else if (_error != null) {
+      child = ErrorState(message: _error!, onRetry: _load);
+      stateKey = 'error';
+    } else if (_files.isEmpty) {
+      child = const EmptyState(
+        icon: Icons.insert_drive_file_outlined,
+        title: '这个班还没有文件',
+        description: '老师上传课件后，这里会显示文件列表。',
       );
-    }
-    if (_files.isEmpty) {
-      return const Center(
-        child: Text('这个班还没有文件', style: TextStyle(color: Color(0xFF999999))),
+      stateKey = 'empty';
+    } else {
+      child = ListView.separated(
+        padding: const EdgeInsets.all(kSpaceSM),
+        itemCount: _files.length,
+        separatorBuilder: (_, _) => const SizedBox(height: kSpaceXS),
+        itemBuilder: (BuildContext context, int index) {
+          final ClassFile f = _files[index];
+          return _fileCard(f);
+        },
       );
+      stateKey = 'data';
     }
-    return ListView.separated(
-      padding: const EdgeInsets.all(12),
-      itemCount: _files.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (BuildContext context, int index) {
-        final ClassFile f = _files[index];
-        return _fileCard(f);
-      },
+    // AnimatedSwitcher 让四态切换淡入淡出（动效·第三批 B1）；KeyedSubtree 用状态 key 触发过渡
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: KeyedSubtree(key: ValueKey(stateKey), child: child),
     );
   }
 
@@ -271,7 +264,7 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
       onTap: () => _downloadAndPlay(f),
       borderRadius: BorderRadius.circular(kRadiusCard),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: kSpaceSM, vertical: kSpaceSM),
         decoration: BoxDecoration(
           color: kCard,
           borderRadius: BorderRadius.circular(kRadiusCard),
@@ -285,16 +278,16 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: f.isVideo ? const Color(0xFF8FB8D8) : kTeal,
-                borderRadius: BorderRadius.circular(10),
+                color: f.isVideo ? kTextSecondary : kTeal,
+                borderRadius: BorderRadius.circular(kRadiusSM),
               ),
               child: Icon(
                 f.isVideo ? Icons.movie_outlined : Icons.audiotrack,
                 color: Colors.white,
-                size: 24,
+                size: kIconMD,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: kSpaceSM),
             // 标题 + 大小·格式
             Expanded(
               child: Column(
@@ -305,24 +298,24 @@ class _ClassFilesPageState extends State<ClassFilesPage> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 15,
-                        color: Color(0xFF333333),
-                        fontWeight: FontWeight.w600),
+                        fontSize: kFontTitle,
+                        color: kTextPrimary,
+                        fontWeight: kWeightMedium),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: kSpaceXXS),
                   Text(
                     [f.sizeLabel, f.format?.toUpperCase() ?? '']
                         .where((String s) => s.isNotEmpty)
                         .join(' · '),
                     style: const TextStyle(
-                        fontSize: 12, color: Color(0xFF999999)),
+                        fontSize: kFontCaption, color: kTextHint),
                   ),
                 ],
               ),
             ),
             // 下载/播放图标
             const Icon(Icons.play_circle_outline,
-                size: 24, color: Color(0xFFBBBBBB)),
+                size: kIconMD, color: kTextHint),
           ],
         ),
       ),

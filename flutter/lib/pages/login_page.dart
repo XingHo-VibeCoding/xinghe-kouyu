@@ -102,10 +102,10 @@ class _LoginPageState extends State<LoginPage> {
             style: TextStyle(
                 color: kTextPrimary,
                 fontSize: kFontTitle,
-                fontWeight: FontWeight.bold)),
+                fontWeight: kWeightBold)),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        padding: const EdgeInsets.fromLTRB(kSpaceLG, kSpaceMD, kSpaceLG, kSpaceLG),
         child: Form(
           key: _formKey,
           child: Column(
@@ -114,12 +114,12 @@ class _LoginPageState extends State<LoginPage> {
               const Text('欢迎回来',
                   style: TextStyle(
                       fontSize: kFontHero,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: kWeightBold,
                       color: kTextPrimary)),
-              const SizedBox(height: 8),
+              const SizedBox(height: kSpaceXS),
               const Text('登录后可以加入班级、接收老师发的课件',
                   style: TextStyle(fontSize: kFontBody, color: kTextSecondary)),
-              const SizedBox(height: 32),
+              const SizedBox(height: kSpaceXL),
 
               // ---------- 账号 ----------
               TextFormField(
@@ -133,7 +133,7 @@ class _LoginPageState extends State<LoginPage> {
                 validator: (String? v) =>
                     (v == null || v.trim().isEmpty) ? '请输入账号' : null,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: kSpaceMD),
 
               // ---------- 密码 ----------
               TextFormField(
@@ -147,19 +147,20 @@ class _LoginPageState extends State<LoginPage> {
                     icon: Icon(_obscure
                         ? Icons.visibility_off_outlined
                         : Icons.visibility_outlined),
+                    tooltip: _obscure ? '显示密码' : '隐藏密码',
                     onPressed: () => setState(() => _obscure = !_obscure),
                   ),
                 ),
                 validator: (String? v) =>
                     (v == null || v.isEmpty) ? '请输入密码' : null,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: kSpaceXL),
 
               // ---------- 登录按钮 ----------
               FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: kTeal,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: kSpaceSM),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(kRadiusBtn)),
                 ),
@@ -172,7 +173,7 @@ class _LoginPageState extends State<LoginPage> {
                             strokeWidth: 2, color: Colors.white))
                     : const Text('登录', style: TextStyle(fontSize: kFontTitle)),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: kSpaceMD),
 
               // ---------- 去注册 ----------
               TextButton(

@@ -7,7 +7,13 @@ import 'package:provider/provider.dart';
 
 import '../models/material_item.dart';
 import '../store/material_store.dart';
+import '../utils/design_tokens.dart';
 import '../utils/sort_option.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/error_state.dart';
+import '../widgets/material_card.dart';
+import '../widgets/skeleton_list.dart';
+import '../widgets/sort_menu.dart';
 import 'folder_manage_page.dart';
 import 'player_page.dart';
 
@@ -46,13 +52,20 @@ class _MaterialListPageState extends State<MaterialListPage> {
           ),
         ],
       ),
-      // 按当前状态渲染对应界面（switch 表达式：枚举四档全覆盖，少一档都编译不过）
-      body: switch (store.status) {
-        ListStatus.loading => _buildLoading(),
-        ListStatus.empty => _buildEmpty(context),
-        ListStatus.error => _buildError(context, store),
-        ListStatus.data => _buildList(context, store),
-      },
+      // 按当前状态渲染对应界面（switch 表达式：枚举四档全覆盖，少一档都编译不过）；
+      // AnimatedSwitcher 让四态切换淡入淡出（动效·第三批 B1），KeyedSubtree 用状态枚举做 key 触发过渡
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        child: KeyedSubtree(
+          key: ValueKey(store.status),
+          child: switch (store.status) {
+            ListStatus.loading => const SkeletonList(),
+            ListStatus.empty => _buildEmpty(context),
+            ListStatus.error => _buildError(context, store),
+            ListStatus.data => _buildList(context, store),
+          },
+        ),
+      ),
       // 常驻「导入」悬浮按钮：有数据/空状态都能导，避免「导入第一条后入口消失」的断点
       floatingActionButton: FloatingActionButton(
         onPressed: () => _startImport(context),
@@ -62,65 +75,25 @@ class _MaterialListPageState extends State<MaterialListPage> {
     );
   }
 
-  /// 状态①：加载中 —— 骨架屏（灰块占位），好处是数据到达时布局不跳动
-  Widget _buildLoading() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: 6,
-      itemBuilder: (_, __) => const _SkeletonRow(),
-    );
-  }
-
   /// 状态②：空 —— 没有素材是完全正常的情况，要引导用户去导入
   Widget _buildEmpty(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          const Icon(Icons.eco_outlined, size: 72, color: Colors.grey),
-          const SizedBox(height: 12),
-          const Text('还没有素材', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              '把老师发的音视频导入进来，这里就会长出你的素材列表。',
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: () => _startImport(context),
-            icon: const Icon(Icons.add),
-            label: const Text('导入素材'),
-          ),
-        ],
+    return EmptyState(
+      icon: Icons.eco_outlined,
+      title: '还没有素材',
+      description: '把老师发的音视频导入进来，这里就会长出你的素材列表。',
+      action: FilledButton.icon(
+        onPressed: () => _startImport(context),
+        icon: const Icon(Icons.add),
+        label: const Text('导入素材'),
       ),
     );
   }
 
   /// 状态③：出错 —— 三个要素：说清发生了什么、给出口（重试）、别让用户干等
   Widget _buildError(BuildContext context, MaterialStore store) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          const Icon(Icons.error_outline, size: 72, color: Colors.orange),
-          const SizedBox(height: 12),
-          const Text('加载失败', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(store.errorMessage, textAlign: TextAlign.center),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: () => store.load(), // 重试 = 重新走一遍完整加载
-            icon: const Icon(Icons.refresh),
-            label: const Text('重试'),
-          ),
-        ],
-      ),
+    return ErrorState(
+      message: store.errorMessage,
+      onRetry: () => store.load(), // 重试 = 重新走一遍完整加载
     );
   }
 
@@ -130,38 +103,28 @@ class _MaterialListPageState extends State<MaterialListPage> {
     // 先按用户选的排序方式排一遍，再渲染（纯展示层，不改数据库原始顺序）
     final List<MaterialItem> items = sortMaterials(store.items, _sortOption);
     return ListView.separated(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(kSpaceSM),
       itemCount: items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 4),
+      separatorBuilder: (_, __) => const SizedBox(height: kSpaceXXS),
       itemBuilder: (BuildContext context, int index) {
         final MaterialItem item = items[index];
-        final bool isVideo =
-            item.format == 'mp4' || item.format == 'mov' || item.format == 'webm';
-        return Card(
-          child: ListTile(
-            leading: _mediaBadge(context, isVideo),
-            title: Text(item.title),
-            subtitle: Text(
-              _materialSubtitle(store, item),
-              // 副标题降级为中性灰小字，和标题拉开层级
-              style: const TextStyle(fontSize: 12, color: Colors.black54),
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            // 长按：弹出操作菜单（重命名 / 移动 / 删除），和浏览页一致
-            onLongPress: () => _showItemMenu(context, store, item),
-            onTap: () {
-              // 入口 2：进「播放页」，把点中的素材和它的文件夹名一起传过去
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PlayerPage(
-                    item: item,
-                    folderName: store.folderNameOf(item.folderId),
-                  ),
+        return MaterialCard(
+          item: item,
+          subtitle: _materialSubtitle(store, item),
+          // 长按：弹出操作菜单（重命名 / 移动 / 删除），和浏览页一致
+          onLongPress: () => _showItemMenu(context, store, item),
+          onOpen: () {
+            // 入口 2：进「播放页」，把点中的素材和它的文件夹名一起传过去
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PlayerPage(
+                  item: item,
+                  folderName: store.folderNameOf(item.folderId),
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -169,47 +132,10 @@ class _MaterialListPageState extends State<MaterialListPage> {
 
   /// 排序入口按钮：AppBar 上的排序图标，点开弹出「四选一」菜单
   Widget _buildSortButton(MaterialStore store) {
-    return PopupMenuButton<SortOption>(
-      icon: const Icon(Icons.sort),
-      tooltip: '排序',
-      // 当前选中的排序项打勾
-      initialValue: _sortOption,
-      onSelected: (SortOption opt) {
+    return SortMenu(
+      option: _sortOption,
+      onChanged: (SortOption opt) {
         setState(() => _sortOption = opt);
-      },
-      // 自定义菜单项（不用默认的 CheckedPopupMenuItem——它的勾是灰色、
-      // 和主题脱节）。这里用主题蓝的勾 + 每项自己的图标，视觉统一。
-      itemBuilder: (BuildContext context) {
-        final Color primary = Theme.of(context).colorScheme.primary;
-        return SortOption.values.map((SortOption opt) {
-          final bool selected = opt == _sortOption;
-          return PopupMenuItem<SortOption>(
-            value: opt,
-            height: 48,
-            child: Row(
-              children: <Widget>[
-                // 选中列：固定宽度放勾，未选中时占位透明，保持文字对齐
-                SizedBox(
-                  width: 28,
-                  child: selected
-                      ? Icon(Icons.check, size: 20, color: primary)
-                      : null,
-                ),
-                Icon(opt.icon, size: 20,
-                    color: selected ? primary : Colors.black45),
-                const SizedBox(width: 10),
-                Text(
-                  opt.label,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                    color: selected ? primary : const Color(0xFF333333),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList();
       },
     );
   }
@@ -217,23 +143,6 @@ class _MaterialListPageState extends State<MaterialListPage> {
   /// 演示阶段的占位提示：诚实地告诉用户这个功能还没接入
   void _showDemoTip(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  /// 素材类型徽章：圆角彩色底 + 白图标，比裸线条图标更有质感、更易扫读
-  Widget _mediaBadge(BuildContext context, bool isVideo) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Icon(
-        isVideo ? Icons.movie_outlined : Icons.audiotrack,
-        color: Colors.white,
-        size: 22,
-      ),
-    );
   }
 
   /// 拼接素材卡片的副标题：「文件夹 · 格式 · 时长」。
@@ -335,7 +244,7 @@ class _MaterialListPageState extends State<MaterialListPage> {
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
         title: const Text('移动到哪个文件夹？'),
-        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(vertical: kSpaceXS),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: targets
@@ -425,7 +334,7 @@ class _MaterialListPageState extends State<MaterialListPage> {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('导入到哪个文件夹？'),
-          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(vertical: kSpaceXS),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: store.folders
@@ -535,44 +444,3 @@ class _MaterialListPageState extends State<MaterialListPage> {
 /// 哨兵：用来标记「用户在文件夹选择弹窗里点了『新建文件夹』」。
 /// 选择弹窗返回这个对象时，表示不是选中的文件夹，而是要求新建后再选。
 class _FolderCreateSentinel {}
-
-/// 骨架屏的一行：圆形头像 + 两行灰条，模拟真实素材卡片的布局
-class _SkeletonRow extends StatelessWidget {
-  const _SkeletonRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: <Widget>[
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Container(width: double.infinity, height: 14, color: Colors.grey.shade300),
-                  const SizedBox(height: 8),
-                  FractionallySizedBox(
-                    widthFactor: 0.5,
-                    alignment: Alignment.centerLeft,
-                    child: Container(height: 12, color: Colors.grey.shade200),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

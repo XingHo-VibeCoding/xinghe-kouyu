@@ -192,10 +192,10 @@ class _RegisterPageState extends State<RegisterPage> {
             style: TextStyle(
                 color: kTextPrimary,
                 fontSize: kFontTitle,
-                fontWeight: FontWeight.bold)),
+                fontWeight: kWeightBold)),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        padding: const EdgeInsets.fromLTRB(kSpaceLG, kSpaceMD, kSpaceLG, kSpaceLG),
         child: Form(
           key: _formKey,
           child: Column(
@@ -204,12 +204,12 @@ class _RegisterPageState extends State<RegisterPage> {
               const Text('创建你的账号',
                   style: TextStyle(
                       fontSize: kFontHero,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: kWeightBold,
                       color: kTextPrimary)),
-              const SizedBox(height: 8),
+              const SizedBox(height: kSpaceXS),
               const Text('注册后可加入班级；本地素材不受影响，游客也能继续用',
                   style: TextStyle(fontSize: kFontBody, color: kTextSecondary)),
-              const SizedBox(height: 32),
+              const SizedBox(height: kSpaceXL),
 
               // ---------- 手机号 ----------
               TextFormField(
@@ -224,7 +224,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 validator: _validatePhone,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: kSpaceMD),
 
               // ---------- 用户名 ----------
               TextFormField(
@@ -239,7 +239,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 validator: _validateUsername,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: kSpaceMD),
 
               // ---------- 密码 ----------
               TextFormField(
@@ -252,7 +252,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 validator: _validatePassword,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: kSpaceMD),
 
               // ---------- 验证码（发码成功后才出现） ----------
               if (_codeSent) ...<Widget>[
@@ -269,7 +269,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   validator: (String? v) =>
                       (v == null || v.trim().isEmpty) ? '请输入验证码' : null,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: kSpaceXS),
                 // 重发倒计时提示
                 Align(
                   alignment: Alignment.centerRight,
@@ -282,14 +282,14 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
               ],
-              const SizedBox(height: 8),
+              const SizedBox(height: kSpaceXS),
 
               // ---------- 获取验证码 ----------
               OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: kTeal,
                   side: const BorderSide(color: kTeal),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: kSpaceSM),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(kRadiusBtn)),
                 ),
@@ -305,13 +305,13 @@ class _RegisterPageState extends State<RegisterPage> {
                             : '获取验证码',
                         style: const TextStyle(fontSize: kFontTitle)),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: kSpaceSM),
 
               // ---------- 完成注册 ----------
               FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: kTeal,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: kSpaceSM),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(kRadiusBtn)),
                 ),

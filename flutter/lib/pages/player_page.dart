@@ -21,6 +21,7 @@ import 'package:video_player/video_player.dart';
 
 import '../models/material_item.dart';
 import '../services/waveform_service.dart';
+import '../utils/design_tokens.dart';
 import '../widgets/waveform_view.dart';
 
 class PlayerPage extends StatefulWidget {
@@ -33,8 +34,7 @@ class PlayerPage extends StatefulWidget {
   State<PlayerPage> createState() => _PlayerPageState();
 }
 
-class _PlayerPageState extends State<PlayerPage>
-    with TickerProviderStateMixin {
+class _PlayerPageState extends State<PlayerPage> with TickerProviderStateMixin {
   // ---- 播放器实例（二选一，视素材是音频还是视频）----
   AudioPlayer? _audio; // 音频播放器（just_audio）
   VideoPlayerController? _video; // 视频播放器（video_player）
@@ -65,7 +65,6 @@ class _PlayerPageState extends State<PlayerPage>
   /// 已过时长 × 倍速）现算，所以每帧拿到的都是此刻的真实位置。
   late final Ticker _frameTicker;
 
-
   /// 单调时钟：只用来量「隔了多久」，不受系统时间被改的影响
   final Stopwatch _clock = Stopwatch()..start();
 
@@ -85,6 +84,33 @@ class _PlayerPageState extends State<PlayerPage>
 
   /// 上面那个等待的超时时刻（毫秒）：seek 失败时不能把界面永久冻住
   int _pendingSeekUntilMs = 0;
+
+  /// AB 循环回跳期间「显示位置的锚点」（= A 点），以及这个锚的失效时刻。
+  ///
+  /// 为什么需要一个独立于 [_pendingSeekTarget] 的东西（v2.6 真机反馈）：
+  /// 循环回跳时「发 seek」和「播放器真的回到 A」之间有一段空窗（视频尤其明显，
+  /// video_player 的 seek 要等平台返回才更新位置）。旧代码只靠
+  /// [_pendingSeekTarget] 的 700ms 守卫 —— 一旦空窗超过 700ms，守卫就把
+  /// 「跳转前的旧位置」当成真位置放了出去，波形于是先窜到 B 之后一小段，
+  /// 等 seek 真的落地才猛地弹回 A。锚点的规则更硬：只要回跳还没落地，
+  /// 这一帧就画 A，没有例外，也不存在「超时就把旧位置放出来」。
+  double? _abAnchor;
+  int _abAnchorUntilMs = 0;
+
+  /// 最近一次发 seek 的时刻（毫秒）。
+  ///
+  /// 为什么要记它（v2.7 真机录屏逐帧分析）：视频的位置是「基准点 + 已过时长 ×
+  /// 倍速」外推出来的，而 seek 刚发出时基准点还是**跳转前**的旧值（
+  /// video_player 要等平台返回才更新），外推就会沿着 B 之后的旧基准继续算；
+  /// 等平台真的落了地，基准点猛地换成落点，外推值和真实值之间那 0.1~0.2 秒
+  /// 的差就被一次性抹平 —— 画面上就是「先往前走了十几像素，又突然退回来」。
+  /// 所以 seek 刚发出的这一小段时间里不做外推（位置原地不动），
+  /// 等平台回报了真实落点再恢复。
+  int _seekIssuedMs = 0;
+
+  /// seek 之后「暂不外推」的时长（毫秒）。取 300ms：实测这台机器上视频
+  /// seek 落地约 0.31 秒（真机录屏逐帧量出来的），留一点余量。
+  static const int _seekSettleMs = 300;
 
   /// 视频位置的基准点（秒）与它被采到的时刻（毫秒）。
   /// video_player 每 100ms 才轮询一次平台位置，逐帧读会得到 10Hz 的台阶；
@@ -236,6 +262,15 @@ class _PlayerPageState extends State<PlayerPage>
       final VideoPlayerValue val = v.value;
       // 暂停 / 卡顿缓冲时不外推：那时候时间在走、画面没走，外推会让波形跑在视频前面
       if (!val.isPlaying || val.isBuffering) return _vPosBase;
+      // seek 刚发出：基准点还是「跳转前」的旧位置，此时外推出来的是一条假轨迹，
+      // 等平台落地后基准一换，画面就会往回弹一下（见 _seekIssuedMs 的说明）。
+      // 这段时间里原地不动，等真实落点回报。
+      // ⚠ 基准时刻必须跟着冻结：否则冻结期一结束，外推会把攒下的这几百毫秒
+      // 一次性补上，p 直接往前蹦一大格，等于把「假前进」攒成「假跳跃」。
+      if (_clock.elapsedMilliseconds - _seekIssuedMs < _seekSettleMs) {
+        _vPosBaseMs = _clock.elapsedMilliseconds;
+        return _vPosBase;
+      }
       final double elapsed =
           (_clock.elapsedMilliseconds - _vPosBaseMs) / 1000.0;
       double p = _vPosBase + elapsed * _speed;
@@ -247,18 +282,32 @@ class _PlayerPageState extends State<PlayerPage>
     return a.position.inMilliseconds / 1000.0;
   }
 
-  /// 每帧回调（播放中才有）：读位置 → 更新 Notifier → 判 AB 回跳。
+  /// 每帧回调（播放中才有）：读位置 → **先判 AB 回跳** → 决定这一帧画哪里。
   ///
   /// 这里是「波形滚动平不平滑」的关键：一帧只产生一个位置值，
   /// 且这个值就是这一帧要画的那个时刻，不存在「这帧没新值、下帧蹦两格」。
+  ///
+  /// ⚠ 顺序很重要（v2.6）：AB 判定必须排在「写显示位置」之前。
+  /// 旧版是先 `_position.value = p` 再去判循环，等于允许「B 之后的一小段」
+  /// 先画出来，再被下一次 seek 拉回 A —— 真机看到的就是「先往前走一小段
+  /// 又卡回 A 点」。现在的规则是**显示位置永不越过 B**。
   void _onFrame(Duration _) {
     if (!mounted) return;
     final double? p = _readPlayerPosition();
     if (p == null) return;
     // 拖动期间以手指为准：播放器报的是「拖动之前」的旧位置
     if (_dragging) return;
-    // seek 在飞的时候，播放器还会报「跳转前」的旧位置（连续十几帧）。
-    // 目标没追上之前先忽略；700ms 超时兜底（防 seek 失败把界面永久冻住）。
+
+    // ① AB 复读优先：返回非 null 表示「这一帧就画这个数」，直接结束
+    final double? abShown = _abDisplayTarget(p);
+    if (abShown != null) {
+      _position.value = abShown;
+      return;
+    }
+
+    // ② 普通 seek（拖进度条 / 快进快退）的落地守卫。
+    // 播放器还会报「跳转前」的旧位置（连续十几帧），目标没追上之前先忽略；
+    // 700ms 超时兜底（防 seek 失败把界面永久冻住）。
     final double? target = _pendingSeekTarget;
     if (target != null) {
       if ((p - target).abs() < 0.35) {
@@ -269,8 +318,19 @@ class _PlayerPageState extends State<PlayerPage>
         _pendingSeekTarget = null; // 超时：别把界面冻在这一帧
       }
     }
+
+    // ③ AB 复读段内：**显示位置只进不退**。
+    // 回跳落地那一刻，播放器报的位置可能比「刚刚画到的位置」还早几十毫秒
+    // （平台 seek 落点 + 外推误差共同造成），照单全收就是接缝处那一下
+    // 「往回弹」。这里把已经画出去的位置当地板，等播放器自己追上来再继续；
+    // 1 秒后无论追上没追上都不再拦（防 seek 彻底失败把画面冻死）。
+    if (_pointA != null &&
+        _pointB != null &&
+        p < _position.value - 0.02 &&
+        _clock.elapsedMilliseconds - _seekIssuedMs < 1000) {
+      return;
+    }
     _position.value = p;
-    _checkAbLoop(); // AB 复读：播到 B 点自动跳回 A
   }
 
   /// 启停逐帧刷新器：只在播放中运行（暂停时位置不会变，白跑 60fps 没意义）
@@ -347,6 +407,10 @@ class _PlayerPageState extends State<PlayerPage>
         ? seconds.clamp(0.0, _duration).toDouble()
         : seconds;
     _position.value = target;
+    _seekIssuedMs = _clock.elapsedMilliseconds;
+    // 用户主动跳转就把 AB 回跳的锚作废：这一跳意味着「我要看的是这里」，
+    // 不该再被上一轮回跳钉在 A 点。循环回跳内部会自己把锚重新设上。
+    _abAnchor = null;
     // 记下目标：追上之前的旧回报一律忽略，避免界面闪回（见 _pendingSeekTarget）
     _pendingSeekTarget = target;
     _pendingSeekUntilMs = _clock.elapsedMilliseconds + 700;
@@ -406,27 +470,70 @@ class _PlayerPageState extends State<PlayerPage>
     setState(() {
       _pointA = null;
       _pointB = null;
+      _abAnchor = null; // 锚点属于「循环回跳」，没有 AB 就没有它
     });
   }
 
-  /// AB 循环核心：播放位置超过 B 点就跳回 A 点。
-  /// 调用时机：音频在位置流（16ms）、视频在 _onVideoTick 里，每次位置更新都检查一次。
-  /// 例外：正拖进度条时不抢播放头（让用户能把播放头拖到 AB 段外去打新点）。
+  /// AB 复读的显示决策：给定播放器报的位置 [p]，返回**这一帧应该画的位置**。
   ///
-  /// 冷却 250ms 的原因：位置流提到 60fps 后，从「判定超过 B」到「真实位置回到 A」
-  /// 之间还会来十几个位置包，每个都会再次命中 B 点条件 —— 不加冷却会连发 seek，
-  /// 反而把播放器拖卡。250ms 足够一次 seek 落地。
-  void _checkAbLoop() {
-    if (_dragging) return; // 拖动中不抢
+  /// - 返回 null：AB 未生效（或这一帧不需要干预），交给常规跟随逻辑；
+  /// - 返回一个数：这一帧就画这个数，调用方不再看 [p]。
+  ///
+  /// 三条规则，按优先级：
+  ///   ① 回跳已经发出、播放器还没落地 → 画 A。**没有超时放行这一步**，
+  ///      这是修「波形先往前窜一小段再弹回 A」的关键（旧版 700ms 一到就把
+  ///      跳转前的旧位置放出来，画面就是窜到 B 之后）；
+  ///   ② 位置越过 B → 发回跳，这一帧照样画 A（不许画出 B 之后）；
+  ///   ③ 其余情况不管，返回 null。
+  ///
+  /// 冷却 250ms：从「判定超过 B」到「真实位置回到 A」之间会连着来十几帧，
+  /// 不冷却会连发 seek 把播放器队列塞满。
+  double? _abDisplayTarget(double p) {
     final double? a = _pointA;
     final double? b = _pointB;
-    if (a == null || b == null) return;
+    if (a == null || b == null) return null;
+
     final int nowMs = _clock.elapsedMilliseconds;
-    if (nowMs < _abCooldownUntilMs) return;
-    if (_position.value >= b) {
-      _abCooldownUntilMs = nowMs + 250;
-      _seekTo(a); // 跳回 A，继续循环
+
+    // ① 回跳在飞：一律画 A，直到播放器真的到了 A 附近
+    if (_abAnchor != null && (_abAnchor! - a).abs() > 0.01) {
+      // A 点被拖走了（用户在复读中微调起点）：旧锚指向的位置已经不是 A，
+      // 继续钉着它会把画面卡在一个「不存在的起点」上，直接作废
+      _abAnchor = null;
     }
+    final double? anchor = _abAnchor;
+    if (anchor != null) {
+      // 「落地」的判据是**单向**的：播放器报的位置已经不比 A 晚太多。
+      //   落地值 ≈ A（可能早几十毫秒，也可能晚一点点）→ 满足，放锚；
+      //   还没落地时它是 B 附近的旧值（A + 循环长度，至少差 0.5 秒）→ 不满足。
+      // 早先这里用 |p - anchor| < 0.35 双向判断，看似对称，实际会在
+      // 「video_player 抢先写入目标值 + 外推」时第一帧就放掉锚，锚形同虚设；
+      // 更糟的是落地值比 A 早时（seek 精度），放锚瞬间画面会往回弹一下。
+      if (p - anchor <= 0.35) {
+        _abAnchor = null; // 落地了，恢复逐帧跟随
+        return null;
+      }
+      if (nowMs < _abAnchorUntilMs) return anchor;
+      // 2 秒还没落地 = 这次 seek 失败：清掉锚让下面重新判定并补发，
+      // 否则画面会永远钉在 A（音频在走、波形不动，比窜一下更糟）
+      _abAnchor = null;
+    }
+
+    // ② 越过 B：发回跳
+    if (p < b) return null;
+    if (nowMs >= _abCooldownUntilMs) {
+      _abCooldownUntilMs = nowMs + 250;
+      _abJumpTo(a);
+    }
+    // 冷却中的那些帧同样不许画出 B 之后，所以无论发没发 seek 都画 A
+    return a;
+  }
+
+  /// 跳回 A 点，并把显示位置「钉」在 A，直到播放器真的落地。
+  void _abJumpTo(double a) {
+    _seekTo(a); // 内部会先把 _position 置成 a、并清掉上一轮的锚
+    _abAnchor = a;
+    _abAnchorUntilMs = _clock.elapsedMilliseconds + 2000;
   }
 
   /// 播放时兜底：如果播放头在 AB 段之外（已过 B 或还没到 A），送回 A 点恢复正常复读。
@@ -436,7 +543,7 @@ class _PlayerPageState extends State<PlayerPage>
     if (a == null || b == null) return;
     if (_position.value >= b || _position.value < a) {
       _abCooldownUntilMs = _clock.elapsedMilliseconds + 250;
-      _seekTo(a);
+      _abJumpTo(a);
     }
   }
 
@@ -545,10 +652,15 @@ class _PlayerPageState extends State<PlayerPage>
   @override
   Widget build(BuildContext context) {
     final MaterialItem item = widget.item;
+    // 两行 chip（复读区 A/B/重置、播放控制区 变速/循环）共用同一套边框样式，
+    // 抽成一个变量，避免下面两处重复写 ChipTheme.of(context).copyWith。
+    final ChipThemeData chipThemeData = ChipTheme.of(context).copyWith(
+      side: BorderSide(color: Colors.black.withValues(alpha: 0.15)),
+    );
 
     return Scaffold(
-      // AppBar 只留返回键，不重复显示标题（标题已在页面中部大标题展示，避免信息重复）
-      appBar: AppBar(),
+      // AppBar 标题显示素材名（方案③：标题只出现在 AppBar，页面中部不再重复显示）
+      appBar: AppBar(title: Text(item.title)),
       // 加波形后内容变高，整页改成「可滚动」：
       // ConstrainedBox(minHeight) + Column(spaceBetween) 顶替原来的 Spacer——
       // 内容不满一屏时上块贴顶、控制区贴底（和加波形前位置一致）；
@@ -560,33 +672,24 @@ class _PlayerPageState extends State<PlayerPage>
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Padding(
                 // 左右内边距归零，让进度条从屏幕最左铺到最右；上下各留 24 保持呼吸感
-                padding: const EdgeInsets.symmetric(vertical: 24),
+                padding: const EdgeInsets.symmetric(vertical: kSpaceLG),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: <Widget>[
-                    // ===== 上块：唱片 / 视频画面 + 标题 =====
+                    // ===== 上块：唱片 / 视频画面 + 副标题 =====
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        const SizedBox(height: 12),
+                        const SizedBox(height: kSpaceSM),
 
                         // ---- 视频画面区 / 音频唱片区 ----
                         if (_isVideo) _buildVideoArea() else _buildDisc(),
 
-                        const SizedBox(height: 16),
-                        Text(
-                          item.title,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: kSpaceMD),
                         Text(
                           '${widget.folderName} · ${item.format.toUpperCase()}',
-                          // 副标题是「信息」不是「按钮」，用深一档的中性灰，保证对比度（之前 black54 偏浅）
-                          style: const TextStyle(color: Colors.black87),
+                          // 副标题是「信息」不是「按钮」，用设计令牌次要文字色 kTextSecondary（中性灰，保证对比度）
+                          style: const TextStyle(color: kTextSecondary),
                         ),
                         // 视频页原来那条 36px 装饰波形已删除：现在统一用上面真正的波形时域图，
                         // 两条叠在一起既重复又挤高度。
@@ -604,15 +707,14 @@ class _PlayerPageState extends State<PlayerPage>
                         RepaintBoundary(
                           child: ValueListenableBuilder<double>(
                             valueListenable: _position,
-                            builder:
-                                (
-                                  BuildContext context,
-                                  double pos,
-                                  Widget? child,
-                                ) => _buildWaveformArea(pos),
+                            builder: (
+                              BuildContext context,
+                              double pos,
+                              Widget? child,
+                            ) => _buildWaveformArea(pos),
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: kSpaceSM),
 
                         // ---- 进度时间轴（模仿一心复读机）----
                         // 固定高度的三层结构：上排 A/B 字母 → 中间细轨道（播放头小圆点 +
@@ -639,7 +741,7 @@ class _PlayerPageState extends State<PlayerPage>
                                 );
                               },
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: kSpaceXS),
 
                         // ---- 主控制行：快退 / 播放暂停 / 快进 ----
                         Row(
@@ -647,17 +749,18 @@ class _PlayerPageState extends State<PlayerPage>
                           children: <Widget>[
                             IconButton(
                               iconSize: 40,
+                              tooltip: '快退 5 秒',
                               onPressed: () => _seekBy(-5),
                               icon: Icon(
                                 Icons.fast_rewind,
-                                color: const Color(0xFF5B8FC9),
+                                color: kTeal,
                               ),
                             ),
-                            const SizedBox(width: 16),
-                            // 播放大按钮：蓝色实心圆钮，是整个播放页最核心的操作，
-                            // 用蓝色 + 白色图标（主色虽是绿，但播放键特意保留蓝色作视觉重心）
+                            const SizedBox(width: kSpaceMD),
+                            // 播放大按钮：主色青绿实心圆钮，是整个播放页最核心的操作，
+                            // 用青绿 + 白色图标（已统一回全 App 主色）
                             Material(
-                              color: const Color(0xFF5B8FC9),
+                              color: kTeal,
                               shape: const CircleBorder(),
                               child: InkWell(
                                 customBorder: const CircleBorder(),
@@ -669,74 +772,72 @@ class _PlayerPageState extends State<PlayerPage>
                                     _playing ? Icons.pause : Icons.play_arrow,
                                     color: Colors.white,
                                     size: 44,
+                                    semanticLabel: _playing ? '暂停' : '播放',
                                   ),
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 16),
+                            const SizedBox(width: kSpaceMD),
                             IconButton(
                               iconSize: 40,
+                              tooltip: '快进 5 秒',
                               onPressed: () => _seekBy(5),
                               icon: Icon(
                                 Icons.fast_forward,
-                                color: const Color(0xFF5B8FC9),
+                                color: kTeal,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: kSpaceXS),
 
                         // ---- 复读功能区（第一行）：A / B / 重置 ----
-                        // chip 只显示字母不显示时间（时间已在进度条上展示），激活时变金色即可。
+                        // chip 只显示字母不显示时间（时间已在进度条上展示），激活时变珊瑚橙即可。
                         ChipTheme(
-                          data: ChipTheme.of(context).copyWith(
-                            side: BorderSide(
-                              color: Colors.black.withValues(alpha: 0.15),
-                            ),
-                          ),
+                          data: chipThemeData,
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: <Widget>[
-                              // A 打点：未打点白底灰字，已打点金底（时间看进度条上的 A 标注）
+                              // A 打点：未打点白底灰字，已打点珊瑚橙底（时间看进度条上的 A 标注）
                               ActionChip(
                                 avatar: Icon(
                                   Icons.keyboard_arrow_up,
-                                  size: 18,
+                                  size: kIconSM,
                                   color: _pointA != null
-                                      ? const Color(0xFFE8A33D)
-                                      : Colors.black54,
+                                      ? kCoral
+                                      : kTextSecondary,
                                 ),
                                 label: const Text('A'),
                                 backgroundColor: _pointA != null
-                                    ? const Color(0xFFF6E3C2)
+                                    ? kCoral.withValues(alpha: 0.15)
                                     : null,
                                 onPressed: _onSetA,
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: kSpaceSM),
                               // B 打点：同 A 的规则
                               ActionChip(
                                 avatar: Icon(
                                   Icons.keyboard_arrow_down,
-                                  size: 18,
+                                  size: kIconSM,
                                   color: _pointB != null
-                                      ? const Color(0xFFE8A33D)
-                                      : Colors.black54,
+                                      ? kCoral
+                                      : kTextSecondary,
                                 ),
                                 label: const Text('B'),
                                 backgroundColor: _pointB != null
-                                    ? const Color(0xFFF6E3C2)
+                                    ? kCoral.withValues(alpha: 0.15)
                                     : null,
                                 onPressed: _onSetB,
                               ),
-                              const SizedBox(width: 12),
-                              // 重置：有任一点被打就点亮成金色（提示「这里有东西可清」）
+                              const SizedBox(width: kSpaceSM),
+                              // 重置：有任一点被打就点亮成珊瑚橙（提示「这里有东西可清」）
                               ActionChip(
                                 avatar: Icon(
                                   Icons.restart_alt,
-                                  size: 18,
+                                  size: kIconSM,
                                   color: (_pointA != null || _pointB != null)
-                                      ? const Color(0xFFE8A33D)
-                                      : Colors.black54,
+                                      ? kCoral
+                                      : kTextSecondary,
                                 ),
                                 label: const Text('重置'),
                                 onPressed: _onAbReset,
@@ -744,32 +845,28 @@ class _PlayerPageState extends State<PlayerPage>
                             ],
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: kSpaceSM),
                         // ---- 播放控制区（第二行）：变速 / 循环 ----
                         ChipTheme(
-                          data: ChipTheme.of(context).copyWith(
-                            side: BorderSide(
-                              color: Colors.black.withValues(alpha: 0.15),
-                            ),
-                          ),
+                          data: chipThemeData,
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: <Widget>[
-                              // 变速：点一下切下一档。非 1.0x 时蓝色底提示「已变速」（蓝=播放控制语义）。
+                              // 变速：点一下切下一档。非 1.0x 时青绿底提示「已变速」。
                               ActionChip(
                                 label: Text('${_speed}x'),
                                 backgroundColor: _speed != 1.0
-                                    ? const Color(0xFFD6E7F5)
+                                    ? kTealSoft
                                     : null,
                                 onPressed: _cycleSpeed,
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: kSpaceSM),
                               // 循环：用 repeat 图标，不用 emoji（emoji 在不同系统渲染差异大，且配色不统一）
                               ActionChip(
                                 avatar: Icon(
                                   Icons.repeat,
-                                  size: 18,
-                                  color: Colors.black54,
+                                  size: kIconSM,
+                                  color: kTextSecondary,
                                 ),
                                 label: const Text('循环'),
                                 onPressed: () => _showTip('单集循环将在后续板块接入'),
@@ -777,7 +874,7 @@ class _PlayerPageState extends State<PlayerPage>
                             ],
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: kSpaceLG),
                       ],
                     ),
                   ],
@@ -792,16 +889,16 @@ class _PlayerPageState extends State<PlayerPage>
 
   /// 音频模式：旋转唱片视觉（播放时转、暂停时停），
   /// 填补播放页中部原本的空洞，同时成为「这是个播放器」的记忆点。
-  /// 盘面用蓝色（和播放大按钮同色，作为播放器专属的视觉重心，区别于主色绿）。
+  /// 盘面用主色青绿（和播放大按钮同色，作为播放器专属的视觉重心）。
   Widget _buildDisc() {
-    final Color discBlue = const Color(0xFF5B8FC9); // 蓝色：唱片盘面
+    final Color discTeal = kTeal; // 青绿：唱片盘面
     return SizedBox(
       width: 200,
       height: 200,
       child: Stack(
         alignment: Alignment.center,
         children: <Widget>[
-          // 唱片盘面：主色淡蓝，带柔和的同心圆纹理。
+          // 唱片盘面：主色青绿，带柔和的同心圆纹理。
           // AnimatedBuilder 监听旋转控制器：value 0→1 循环，映射成一整圈 2π 弧度。
           // 只有这个子树随动画重建，中心标签等其余部分不受影响。
           AnimatedBuilder(
@@ -820,15 +917,9 @@ class _PlayerPageState extends State<PlayerPage>
                 gradient: RadialGradient(
                   // 外深内浅：边缘饱和、中心略亮，让唱片看起来更「实」、更有体积感，
                   // 而不是从中心往外褪色发飘
-                  colors: <Color>[discBlue.withValues(alpha: 0.95), discBlue],
+                  colors: <Color>[discTeal.withValues(alpha: 0.95), discTeal],
                 ),
-                boxShadow: <BoxShadow>[
-                  BoxShadow(
-                    color: discBlue.withValues(alpha: 0.45),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+                boxShadow: kShadowDisc,
               ),
               child: Center(
                 // 多圈同心圆纹路，模拟黑胶唱片的沟槽（比单圈细线更有「唱片」的质感）
@@ -868,18 +959,12 @@ class _PlayerPageState extends State<PlayerPage>
               color: const Color(0xFFFAF6EF),
               // 一圈高光描边，让中心标签从盘面上「浮」起来
               border: Border.all(color: Colors.white, width: 2),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              boxShadow: kShadowLabel,
             ),
             child: Icon(
               Icons.music_note,
-              color: const Color(0xFF5B8FC9),
-              size: 28,
+              color: kTeal,
+              size: kIconMD,
             ),
           ),
         ],
@@ -888,10 +973,10 @@ class _PlayerPageState extends State<PlayerPage>
   }
 
   /// 进度时间轴（模仿一心复读机）：固定高度的 Stack，三层结构——
-  ///   上排：A / B 字母（金色小字，居中于断点）；AB 过近时此排让给 B 的时间；
+  ///   上排：A / B 字母（珊瑚橙小字，居中于断点）；AB 过近时此排让给 B 的时间；
   ///   中间：两端时间（当前/总时长，11px 小字贴最两边、与轨道同水平线）+
-  ///         细轨道 Slider（左右各让出 52px 给两端时间）+ AB 金色小圆点；
-  ///   下排：A / B 时间（金色，居中于断点）。
+  ///         细轨道 Slider（左右各让出 52px 给两端时间）+ AB 珊瑚橙小圆点；
+  ///   下排：A / B 时间（珊瑚橙，居中于断点）。
   /// AB 防挤规则：
   ///   · A 时间固定在轨道下方；B 时间默认也在下方；
   ///   · A/B 距离 < 64px 时，B 时间交错到轨道上方，同时隐藏字母（只交错显示时间）；
@@ -930,16 +1015,16 @@ class _PlayerPageState extends State<PlayerPage>
     final double playX = fracX(pos / (_duration == 0 ? 1 : _duration));
 
     // AB 是否过近（< 64px）：过近时 B 时间交错到上排、隐藏字母
-    final bool abClose = ax != null && bx != null && (bx! - ax!) < 64;
+    final bool abClose = ax != null && bx != null && (bx - ax) < 64;
 
     const TextStyle timeStyle = TextStyle(
-      color: Colors.black54,
-      fontSize: 11,
+      color: kTextSecondary,
+      fontSize: kFontCaption,
       fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
     );
     const TextStyle abTimeStyle = TextStyle(
-      color: Color(0xFFE8A33D),
-      fontSize: 11,
+      color: kCoral,
+      fontSize: kFontCaption,
       fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
     );
 
@@ -965,38 +1050,38 @@ class _PlayerPageState extends State<PlayerPage>
           // ---- 上排：A / B 字母（居中于断点；AB 过近时隐藏，让位给 B 的时间）----
           if (ax != null && !abClose)
             Positioned(
-              left: ax! - 12,
+              left: ax - 12,
               top: 0,
               width: 24,
               child: const Text(
                 'A',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Color(0xFFE8A33D),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  color: kCoral,
+                  fontSize: kFontCaption,
+                  fontWeight: kWeightBold,
                 ),
               ),
             ),
           if (bx != null && !abClose)
             Positioned(
-              left: bx! - 12,
+              left: bx - 12,
               top: 0,
               width: 24,
               child: const Text(
                 'B',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Color(0xFFE8A33D),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  color: kCoral,
+                  fontSize: kFontCaption,
+                  fontWeight: kWeightBold,
                 ),
               ),
             ),
 
           // ---- 中间：AB 色带 + 细轨道 Slider + AB 小圆点 + 两端时间 ----
-          // 色带：A~B（或 A~当前播放位置）淡蓝底，垂直居中在轨道线上
-          if (ax != null) _buildAbBand(ax!, bx ?? playX),
+          // 色带：A~B（或 A~当前播放位置）淡青绿底，垂直居中在轨道线上
+          if (ax != null) _buildAbBand(ax, bx ?? playX),
           // 细轨道 Slider：左右各让出 edgeW 给两端时间（轨道中线 y=32）
           Positioned(
             left: sliderLeft,
@@ -1006,10 +1091,10 @@ class _PlayerPageState extends State<PlayerPage>
             child: SliderTheme(
               data: SliderTheme.of(context).copyWith(
                 trackHeight: 3,
-                activeTrackColor: const Color(0xFF4A7EB8),
-                inactiveTrackColor: const Color(0xFF5B8FC9)
+                activeTrackColor: kTeal,
+                inactiveTrackColor: kTeal
                     .withValues(alpha: 0.18),
-                thumbColor: const Color(0xFF4A7EB8),
+                thumbColor: kTeal,
                 thumbShape: const _DotThumbShape(radius: 7),
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                 trackShape: const RoundedRectSliderTrackShape(),
@@ -1032,29 +1117,29 @@ class _PlayerPageState extends State<PlayerPage>
               ),
             ),
           ),
-          // AB 小圆点：金色实心小点插在轨道上（中线 y=32，点半径 3）
+          // AB 小圆点：珊瑚橙实心小点插在轨道上（中线 y=32，点半径 3）
           if (ax != null)
             Positioned(
-              left: ax! - 3,
+              left: ax - 3,
               top: 29,
               child: Container(
                 width: 6,
                 height: 6,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFE8A33D),
+                  color: kCoral,
                   shape: BoxShape.circle,
                 ),
               ),
             ),
           if (bx != null)
             Positioned(
-              left: bx! - 3,
+              left: bx - 3,
               top: 29,
               child: Container(
                 width: 6,
                 height: 6,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFE8A33D),
+                  color: kCoral,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -1072,11 +1157,11 @@ class _PlayerPageState extends State<PlayerPage>
             child: Text(_fmtTenth(_duration), style: timeStyle),
           ),
 
-          // ---- 下排：A / B 时间（金色，居中于断点，钳制不出屏）----
+          // ---- 下排：A / B 时间（珊瑚橙，居中于断点，钳制不出屏）----
           // A 时间固定在轨道下方；B 时间默认也在下方，AB 过近时交错到上排。
           if (ax != null)
             Positioned(
-              left: clampedLeft(ax!),
+              left: clampedLeft(ax),
               bottom: 0,
               width: 44,
               child: Text(
@@ -1087,7 +1172,7 @@ class _PlayerPageState extends State<PlayerPage>
             ),
           if (bx != null)
             Positioned(
-              left: clampedLeft(bx!),
+              left: clampedLeft(bx),
               // AB 过近：B 时间交错到上排（此时字母已隐藏，位置让给 B 时间）
               top: abClose ? 0 : null,
               bottom: abClose ? null : 0,
@@ -1103,7 +1188,7 @@ class _PlayerPageState extends State<PlayerPage>
     );
   }
 
-  /// AB 复读色带：A~B（或 A~当前播放位置）的淡蓝底，垂直居中叠在轨道线上。
+  /// AB 复读色带：A~B（或 A~当前播放位置）的淡青绿底，垂直居中叠在轨道线上。
   /// 直接接收两端像素锚点（由 _buildTimeline 按轨道实际区域换算好）。
   Widget _buildAbBand(double left, double right) {
     final double width = (right - left).clamp(0.0, double.infinity);
@@ -1116,7 +1201,7 @@ class _PlayerPageState extends State<PlayerPage>
         width: width,
         height: 4,
         decoration: BoxDecoration(
-          color: const Color(0xFF5B8FC9).withValues(alpha: 0.30),
+          color: kTeal.withValues(alpha: 0.30),
           borderRadius: BorderRadius.circular(2),
         ),
       ),
@@ -1138,7 +1223,7 @@ class _PlayerPageState extends State<PlayerPage>
     }
     // body 左右内边距已归零，视频画面左右各留 24px，避免顶到屏幕边缘
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: kSpaceLG),
       child: AspectRatio(
         aspectRatio: vc.value.aspectRatio,
         child: VideoPlayer(vc),
@@ -1184,7 +1269,7 @@ class _DotThumbShape extends SliderComponentShape {
     canvas.drawCircle(
       center,
       radius,
-      Paint()..color = sliderTheme.activeTrackColor ?? const Color(0xFF5B8FC9),
+      Paint()..color = sliderTheme.activeTrackColor ?? kTeal,
     );
     canvas.drawCircle(
       center,

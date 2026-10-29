@@ -100,7 +100,7 @@ class XingheApp extends StatelessWidget {
             color: kCard,
             surfaceTintColor: Colors.transparent,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(kRadiusSM),
               side: BorderSide(color: kBorder),
             ),
             elevation: 8,
@@ -111,6 +111,17 @@ class XingheApp extends StatelessWidget {
           textTheme: const TextTheme(
             bodyMedium: TextStyle(color: kTextPrimary),
             bodySmall: TextStyle(color: kTextSecondary),
+          ),
+          // 页面切换统一过渡（动效·第三批）：Material 3 官方 FadeForwards，前向淡入 + 轻微位移，
+          // 替换系统默认的跨平台不一致过渡
+          pageTransitionsTheme: const PageTransitionsTheme(
+            builders: {
+              TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+              TargetPlatform.iOS: FadeForwardsPageTransitionsBuilder(),
+              TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+              TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
+              TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+            },
           ),
         ),
         // 首页 = 底部导航壳（首页|班级|播放|我的）

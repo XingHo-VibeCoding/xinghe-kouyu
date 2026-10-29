@@ -9,6 +9,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../utils/design_tokens.dart';
+
 class WorkPage extends StatefulWidget {
   const WorkPage({super.key});
 
@@ -17,8 +19,7 @@ class WorkPage extends StatefulWidget {
 }
 
 class _WorkPageState extends State<WorkPage> {
-  // 品牌青绿（学在重邮同款）
-  static const Color teal = Color(0xFF2BC8B7);
+  // 品牌青绿见 design_tokens.kTeal；badgeRed 为语义红角标，保留
   static const Color badgeRed = Color(0xFFF86C6C);
 
   // 分类定义：名称 + 角标数字（null = 没有角标）
@@ -36,37 +37,37 @@ class _WorkPageState extends State<WorkPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F8),
+      backgroundColor: kBg,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const SizedBox(height: 8),
+            const SizedBox(height: kSpaceXS),
             // ---------- 顶部分类 tab（横向可滚动） ----------
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: kSpaceMD),
               child: Row(
                 children: List<Widget>.generate(_categories.length,
                     (int i) => _categoryTab(_categories[i].$1, _categories[i].$2, i)),
               ),
             ),
-            const SizedBox(height: 4),
-            const Divider(height: 1, color: Color(0xFFEEEEEE)),
+            const SizedBox(height: kSpaceXXS),
+            const Divider(height: 1, color: kBorder),
             // ---------- 居中日期 ----------
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.symmetric(vertical: kSpaceMD),
               child: Center(
                 child: Text(
                   _todayString(),
                   style:
-                      const TextStyle(fontSize: 14, color: Color(0xFF999999)),
+                      const TextStyle(fontSize: kFontBody, color: kTextHint),
                 ),
               ),
             ),
             // ---------- 公告卡片（静态占位） ----------
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: kSpaceMD),
               child: _announcementCard(),
             ),
           ],
@@ -90,33 +91,34 @@ class _WorkPageState extends State<WorkPage> {
       onTap: () => setState(() => _selected = index),
       behavior: HitTestBehavior.opaque,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: const EdgeInsets.symmetric(
+            horizontal: kSpaceSM, vertical: kSpaceXXS),
         child: Column(
           children: <Widget>[
-            const SizedBox(height: 8),
+            const SizedBox(height: kSpaceXS),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: selected ? FontWeight.bold : FontWeight.w400,
+                    fontSize: kFontTitle,
+                    fontWeight: selected ? kWeightBold : kWeightRegular,
                     color: selected
-                        ? const Color(0xFF333333)
-                        : const Color(0xFF999999),
+                        ? kTextPrimary
+                        : kTextHint,
                   ),
                 ),
-                if (badge != null) const SizedBox(width: 2),
+                if (badge != null) const SizedBox(width: kSpaceXXS),
                 if (badge != null) _badge(badge),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: kSpaceXS),
             Container(
               width: 28,
               height: 3,
               decoration: BoxDecoration(
-                color: selected ? teal : Colors.transparent,
+                color: selected ? kTeal : Colors.transparent,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -130,16 +132,16 @@ class _WorkPageState extends State<WorkPage> {
   Widget _badge(int count) {
     final String text = count > 99 ? '99+' : '$count';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: kSpaceXXS, vertical: kSpaceXXS),
       decoration: BoxDecoration(
         color: badgeRed,
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(kRadiusXS),
       ),
       constraints: const BoxConstraints(minWidth: 18),
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 10, color: Colors.white),
+        style: const TextStyle(fontSize: kFontMicro, color: Colors.white),
       ),
     );
   }
@@ -148,10 +150,10 @@ class _WorkPageState extends State<WorkPage> {
   Widget _announcementCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(kSpaceMD),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(kRadiusSM),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,40 +165,44 @@ class _WorkPageState extends State<WorkPage> {
                 child: Text(
                   '公告发布',
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
+                    fontSize: kFontTitle,
+                    fontWeight: kWeightBold,
+                    color: kTextPrimary,
                   ),
                 ),
               ),
               GestureDetector(
                 onTap: () {}, // 占位：后续接「更多操作」
-                child: const Icon(Icons.more_vert,
-                    size: 20, color: Color(0xFFBBBBBB)),
+                behavior: HitTestBehavior.opaque,
+                child: const Padding(
+                  padding: EdgeInsets.all(kSpaceSM),
+                  child: Icon(Icons.more_vert,
+                      size: kIconSM, color: kTextHint, semanticLabel: '更多'),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: kSpaceXS),
           // 正文：灰字 + 黑字 + 青绿链接字（1:1 复刻参考图配色）
           const Text.rich(
             TextSpan(
-              style: TextStyle(fontSize: 14, height: 1.6),
+              style: TextStyle(fontSize: kFontBody, height: 1.6),
               children: <InlineSpan>[
                 TextSpan(
                   text: '课程 ',
-                  style: TextStyle(color: Color(0xFF999999)),
+                  style: TextStyle(color: kTextHint),
                 ),
                 TextSpan(
                   text: '【示例课程】',
-                  style: TextStyle(color: Color(0xFF333333)),
+                  style: TextStyle(color: kTextPrimary),
                 ),
                 TextSpan(
                   text: ' 发布公告 ',
-                  style: TextStyle(color: Color(0xFF999999)),
+                  style: TextStyle(color: kTextHint),
                 ),
                 TextSpan(
                   text: '作业功能即将上线，届时这里会展示老师发布的作业与通知',
-                  style: TextStyle(color: teal),
+                  style: TextStyle(color: kTeal),
                 ),
               ],
             ),

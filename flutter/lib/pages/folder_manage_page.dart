@@ -15,6 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../store/material_store.dart';
+import '../utils/design_tokens.dart';
+import '../widgets/empty_state.dart';
 import 'folder_content_page.dart';
 
 class FolderManagePage extends StatelessWidget {
@@ -34,7 +36,7 @@ class FolderManagePage extends StatelessWidget {
       body: folders.isEmpty
           ? _buildEmpty(context)
           : ListView.builder(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(kSpaceSM),
               itemCount: folders.length,
               itemBuilder: (BuildContext context, int index) {
                 final Folder folder = folders[index];
@@ -64,10 +66,10 @@ class FolderManagePage extends StatelessWidget {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        Text('$count 个', style: const TextStyle(color: Colors.black54)),
+                        Text('$count 个', style: const TextStyle(color: kTextSecondary)),
                         // 重命名按钮（铅笔图标）
                         IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          icon: const Icon(Icons.edit_outlined, size: kIconSM),
                           tooltip: '重命名',
                           onPressed: () => _promptRename(context, store, folder),
                         ),
@@ -75,7 +77,7 @@ class FolderManagePage extends StatelessWidget {
                         IconButton(
                           icon: Icon(
                             Icons.delete_outline,
-                            size: 20,
+                            size: kIconSM,
                             color: Theme.of(context).colorScheme.error,
                           ),
                           tooltip: '删除',
@@ -98,17 +100,10 @@ class FolderManagePage extends StatelessWidget {
 
   /// 空状态：还没有任何文件夹时提示
   Widget _buildEmpty(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          const Icon(Icons.folder_off_outlined, size: 72, color: Colors.grey),
-          const SizedBox(height: 12),
-          const Text('还没有文件夹', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          const Text('点右下角「新建文件夹」开始整理素材。', style: TextStyle(color: Colors.black54)),
-        ],
-      ),
+    return const EmptyState(
+      icon: Icons.folder_off_outlined,
+      title: '还没有文件夹',
+      description: '点右下角「新建文件夹」开始整理素材。',
     );
   }
 

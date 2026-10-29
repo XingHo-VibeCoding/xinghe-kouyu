@@ -13,6 +13,9 @@ import 'package:provider/provider.dart';
 import '../models/class_member.dart';
 import '../net/api_client.dart';
 import '../utils/design_tokens.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/error_state.dart';
+import '../widgets/skeleton_list.dart';
 
 class ClassMembersPage extends StatefulWidget {
   final String classId;
@@ -69,9 +72,9 @@ class _ClassMembersPageState extends State<ClassMembersPage> {
       backgroundColor: kBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF333333),
+        foregroundColor: kTextPrimary,
         elevation: 0,
-        title: Text('班级成员', style: const TextStyle(fontSize: 17)),
+        title: Text('班级成员', style: const TextStyle(fontSize: kFontTitle)),
       ),
       body: _buildBody(),
     );
@@ -79,47 +82,37 @@ class _ClassMembersPageState extends State<ClassMembersPage> {
 
   /// 按状态渲染：加载中 / 出错 / 空 / 列表
   Widget _buildBody() {
+    final Widget child;
+    final String stateKey;
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: kTeal));
-    }
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Icon(Icons.error_outline, size: 64, color: Colors.orange),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(_error!,
-                  textAlign: TextAlign.center,
-                  style:
-                      const TextStyle(fontSize: 13, color: Color(0xFF999999))),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: kTeal),
-              onPressed: _load,
-              icon: const Icon(Icons.refresh),
-              label: const Text('重试'),
-            ),
-          ],
-        ),
+      child = const SkeletonList();
+      stateKey = 'loading';
+    } else if (_error != null) {
+      child = ErrorState(message: _error!, onRetry: _load);
+      stateKey = 'error';
+    } else if (_members.isEmpty) {
+      child = const EmptyState(
+        icon: Icons.group_outlined,
+        title: '这个班还没有成员',
+        description: '成员加入后，这里会显示老师和学生。',
       );
-    }
-    if (_members.isEmpty) {
-      return const Center(
-        child: Text('这个班还没有成员', style: TextStyle(color: Color(0xFF999999))),
+      stateKey = 'empty';
+    } else {
+      child = ListView.separated(
+        padding: const EdgeInsets.all(kSpaceSM),
+        itemCount: _members.length,
+        separatorBuilder: (_, _) => const SizedBox(height: kSpaceXS),
+        itemBuilder: (BuildContext context, int index) {
+          final ClassMember m = _members[index];
+          return _memberCard(m);
+        },
       );
+      stateKey = 'data';
     }
-    return ListView.separated(
-      padding: const EdgeInsets.all(12),
-      itemCount: _members.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (BuildContext context, int index) {
-        final ClassMember m = _members[index];
-        return _memberCard(m);
-      },
+    // AnimatedSwitcher 让四态切换淡入淡出（动效·第三批 B1）；KeyedSubtree 用状态 key 触发过渡
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: KeyedSubtree(key: ValueKey(stateKey), child: child),
     );
   }
 
@@ -128,7 +121,7 @@ class _ClassMembersPageState extends State<ClassMembersPage> {
     final String nickname = m.nickname ?? '未知用户';
     final String initial = nickname.isEmpty ? '?' : nickname.characters.first;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: kSpaceSM, vertical: kSpaceSM),
       decoration: BoxDecoration(
         color: kCard,
         borderRadius: BorderRadius.circular(kRadiusCard),
@@ -140,37 +133,37 @@ class _ClassMembersPageState extends State<ClassMembersPage> {
           // 头像：圆底 + 昵称首字
           CircleAvatar(
             radius: 22,
-            backgroundColor: m.isTeacher ? kTeal : const Color(0xFF8FB8D8),
+            backgroundColor: m.isTeacher ? kTeal : kTextSecondary,
             child: Text(
               initial,
               style: const TextStyle(
-                  fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold),
+                  fontSize: kFontTitle, color: Colors.white, fontWeight: kWeightBold),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: kSpaceSM),
           // 昵称
           Expanded(
             child: Text(
               nickname,
               style: const TextStyle(
-                  fontSize: 15, color: Color(0xFF333333), fontWeight: FontWeight.w600),
+                  fontSize: kFontTitle, color: kTextPrimary, fontWeight: kWeightMedium),
             ),
           ),
           // 身份标签
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: kSpaceSM, vertical: kSpaceXXS),
             decoration: BoxDecoration(
               color: m.isTeacher
-                  ? const Color(0xFFE0F5F1)
-                  : const Color(0xFFE8F1F8),
-              borderRadius: BorderRadius.circular(12),
+                  ? kTealSoft
+                  : kBorder,
+              borderRadius: BorderRadius.circular(kRadiusSM),
             ),
             child: Text(
               m.isTeacher ? '老师' : '学生',
               style: TextStyle(
-                fontSize: 12,
-                color: m.isTeacher ? kTeal : const Color(0xFF5B8FC9),
-                fontWeight: FontWeight.w600,
+                fontSize: kFontCaption,
+                color: m.isTeacher ? kTeal : kTextSecondary,
+                fontWeight: kWeightMedium,
               ),
             ),
           ),

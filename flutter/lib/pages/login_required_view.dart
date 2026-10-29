@@ -24,7 +24,7 @@ class LoginRequiredView extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+            padding: const EdgeInsets.symmetric(horizontal: kSpaceXL),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
@@ -39,16 +39,16 @@ class LoginRequiredView extends StatelessWidget {
                   child: const Icon(Icons.menu_book_outlined,
                       size: 44, color: kTeal),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: kSpaceLG),
                 const Text(
                   '登录后可加入班级',
                   style: TextStyle(
                     fontSize: kFontTitle,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: kWeightBold,
                     color: kTextPrimary,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: kSpaceSM),
                 const Text(
                   '班级需要把你的身份同步到云端，\n所以要先登录账号。\n\n本地素材、播放与复读不受影响，\n不登录也能一直用。',
                   textAlign: TextAlign.center,
@@ -58,13 +58,13 @@ class LoginRequiredView extends StatelessWidget {
                     color: kTextSecondary,
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: kSpaceXL),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
                     style: FilledButton.styleFrom(
                       backgroundColor: kTeal,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(vertical: kSpaceSM),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(kRadiusBtn)),
                     ),

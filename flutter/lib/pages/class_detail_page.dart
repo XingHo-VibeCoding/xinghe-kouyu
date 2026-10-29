@@ -37,10 +37,10 @@ class ClassDetailPage extends StatelessWidget {
                   _section(
                     title: '课程信息',
                     items: const <_GridItem>[
-                      _GridItem(Icons.menu_book, '章节', Color(0xFFF0A637)),
-                      _GridItem(Icons.campaign, '公告', Color(0xFF5B8DEF)),
-                      _GridItem(Icons.groups, '班级成员', Color(0xFFF2765E)),
-                      _GridItem(Icons.description, '课程信息', Color(0xFF3FC8C0)),
+                      _GridItem(Icons.menu_book_outlined, '章节', Color(0xFFF0A637)),
+                      _GridItem(Icons.campaign_outlined, '公告', Color(0xFF5B8DEF)),
+                      _GridItem(Icons.groups_outlined, '班级成员', Color(0xFFF2765E)),
+                      _GridItem(Icons.description_outlined, '课程信息', Color(0xFF3FC8C0)),
                     ],
                   ),
                   _section(
@@ -49,24 +49,24 @@ class ClassDetailPage extends StatelessWidget {
                       _GridItem(Icons.book_outlined, '课件', Color(0xFF7BC64E)),
                       _GridItem(Icons.assignment_outlined, '作业', Color(0xFF6BBF59)),
                       _GridItem(Icons.quiz_outlined, '测试', Color(0xFFF2765E)),
-                      _GridItem(Icons.chat_bubble, '讨论', Color(0xFF5B8DEF)),
+                      _GridItem(Icons.chat_bubble_outline, '讨论', Color(0xFF5B8DEF)),
                       _GridItem(Icons.fact_check_outlined, '问卷', Color(0xFF5B8DEF)),
                       _GridItem(Icons.hub_outlined, '互动', Color(0xFF3FC8C0)),
-                      _GridItem(Icons.how_to_reg, '点名记录', Color(0xFF6A7FDB)),
-                      _GridItem(Icons.diversity_3, '分组学习', Color(0xFF3FB8A0)),
-                      _GridItem(Icons.receipt_long, '课堂报告', Color(0xFF4FC8C8)),
-                      _GridItem(Icons.rule, '练习本', Color(0xFF35C0A8)),
+                      _GridItem(Icons.how_to_reg_outlined, '点名记录', Color(0xFF6A7FDB)),
+                      _GridItem(Icons.diversity_3_outlined, '分组学习', Color(0xFF3FB8A0)),
+                      _GridItem(Icons.receipt_long_outlined, '课堂报告', Color(0xFF4FC8C8)),
+                      _GridItem(Icons.rule_outlined, '练习本', Color(0xFF35C0A8)),
                     ],
                   ),
                   _section(
                     title: '教学成果',
                     items: const <_GridItem>[
-                      _GridItem(Icons.leaderboard, '成绩', Color(0xFFF2765E)),
-                      _GridItem(Icons.insights, '学习分析', Color(0xFF5B8DEF)),
-                      _GridItem(Icons.emoji_events, '教学评价', Color(0xFF3FC8C0)),
+                      _GridItem(Icons.leaderboard_outlined, '成绩', Color(0xFFF2765E)),
+                      _GridItem(Icons.insights_outlined, '学习分析', Color(0xFF5B8DEF)),
+                      _GridItem(Icons.emoji_events_outlined, '教学评价', Color(0xFF3FC8C0)),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: kSpaceLG),
                 ],
               ),
             ),
@@ -82,7 +82,7 @@ class ClassDetailPage extends StatelessWidget {
       height: 210,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: <Color>[Color(0xFF3FC8C0), Color(0xFF2FB5C9)],
+          colors: <Color>[kTeal, kTealDark],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -95,33 +95,34 @@ class ClassDetailPage extends StatelessWidget {
             // 返回按钮
             IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white),
+              tooltip: '返回',
               onPressed: () => Navigator.pop(context),
             ),
             const Spacer(),
             // 班级名（白色大字）
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: kSpaceLG),
               child: Text(
                 cls.name,
                 style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
+                  fontSize: kFontDisplay,
+                  fontWeight: kWeightBold,
                   color: Colors.white,
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: kSpaceMD),
             // 老师胶囊（右下角）：小白圈头像 + 老师名
             Align(
               alignment: Alignment.centerRight,
               child: Padding(
-                padding: const EdgeInsets.only(right: 24),
+                padding: const EdgeInsets.only(right: kSpaceLG),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
+                      horizontal: kSpaceSM, vertical: kSpaceXXS),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(kRadiusBtn),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -132,24 +133,24 @@ class ClassDetailPage extends StatelessWidget {
                         child: Text(
                           (cls.teacherName ?? '师').characters.first,
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: kFontCaption,
                             color: kTeal,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: kWeightBold,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: kSpaceXS),
                       Text(
                         cls.teacherName ?? '未知老师',
                         style: const TextStyle(
-                            fontSize: 13, color: Colors.white),
+                            fontSize: kFontBody, color: Colors.white),
                       ),
                     ],
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: kSpaceLG),
           ],
         ),
       ),
@@ -162,19 +163,19 @@ class ClassDetailPage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          padding: const EdgeInsets.fromLTRB(kSpaceMD, 0, kSpaceMD, kSpaceXS),
           child: Text(
             title,
             style: const TextStyle(
               fontSize: kFontTitle,
-              fontWeight: FontWeight.w700,
+              fontWeight: kWeightBold,
               color: kTextPrimary,
             ),
           ),
         ),
         Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          margin: const EdgeInsets.symmetric(horizontal: kSpaceMD),
+          padding: const EdgeInsets.symmetric(vertical: kSpaceMD),
           decoration: BoxDecoration(
             color: kCard,
             borderRadius: BorderRadius.circular(kRadiusCard),
@@ -190,7 +191,7 @@ class ClassDetailPage extends StatelessWidget {
                 items.map((_GridItem item) => _gridCell(item)).toList(),
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: kSpaceLG),
       ],
     );
   }
@@ -243,9 +244,9 @@ class ClassDetailPage extends StatelessWidget {
                   color: item.color,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(item.icon, color: Colors.white, size: 24),
+                child: Icon(item.icon, color: Colors.white, size: kIconMD),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: kSpaceXS),
               Text(
                 item.label,
                 style: const TextStyle(

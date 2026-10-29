@@ -114,12 +114,12 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
           style: TextStyle(
             color: kTextPrimary,
             fontSize: kFontTitle,
-            fontWeight: FontWeight.bold,
+            fontWeight: kWeightBold,
           ),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+        padding: const EdgeInsets.fromLTRB(kSpaceLG, kSpaceXS, kSpaceLG, kSpaceLG),
         child: Form(
           key: _formKey,
           child: Column(
@@ -129,11 +129,11 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                 '还差一步',
                 style: TextStyle(
                   fontSize: kFontHero,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: kWeightBold,
                   color: kTextPrimary,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: kSpaceXS),
               const Text(
                 '账号已登录成功，再填个昵称、选一下身份就能用班级了。\n身份决定你能不能建班，请按真实情况选。',
                 style: TextStyle(
@@ -142,7 +142,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                   color: kTextSecondary,
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: kSpaceXL),
 
               // ---------- 昵称 ----------
               TextFormField(
@@ -162,25 +162,25 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: kSpaceLG),
 
               // ---------- 身份 ----------
               const Text(
                 '我的身份',
                 style: TextStyle(
                   fontSize: kFontBody,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: kWeightMedium,
                   color: kTextPrimary,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: kSpaceSM),
               if (_roleLocked)
                 const Padding(
-                  padding: EdgeInsets.only(bottom: 8),
+                  padding: EdgeInsets.only(bottom: kSpaceXS),
                   child: Row(
                     children: <Widget>[
-                      Icon(Icons.lock_outline, size: 14, color: kTextHint),
-                      SizedBox(width: 4),
+                      Icon(Icons.lock_outline, size: kIconXS, color: kTextHint),
+                      SizedBox(width: kSpaceXXS),
                       Expanded(
                         child: Text(
                           '你已有班级记录，身份已锁定不可修改',
@@ -198,15 +198,15 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
               // 让用户知道「直接保存 = 覆盖云端记录」，别误点。
               else if (userStore.role != null)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.only(bottom: kSpaceXS),
                   child: Row(
                     children: <Widget>[
                       const Icon(
                         Icons.info_outline,
-                        size: 14,
+                        size: kIconXS,
                         color: kTextHint,
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: kSpaceXXS),
                       Expanded(
                         child: Text(
                           '你之前登记的身份是「'
@@ -232,7 +232,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                       onTap: () => setState(() => _role = UserRole.teacher),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: kSpaceSM),
                   Expanded(
                     child: _roleChip(
                       label: '我是学生',
@@ -244,7 +244,7 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: kSpaceSM),
               Text(
                 _role == UserRole.teacher
                     ? '老师可以创建班级、上传音视频'
@@ -254,12 +254,12 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
                   color: kTextHint,
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: kSpaceXL),
 
               FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: kTeal,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: kSpaceSM),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(kRadiusBtn),
                   ),
@@ -297,16 +297,16 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     final bool effective = enabled && selected;
     return InkWell(
       onTap: enabled ? onTap : null,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(kRadiusSM),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: kSpaceSM),
         decoration: BoxDecoration(
           color: effective ? kTeal : Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(kRadiusSM),
           border: Border.all(
             color: effective
                 ? kTeal
-                : (enabled ? Colors.black26 : Colors.black12),
+                : kBorder,
           ),
         ),
         child: Column(
@@ -315,16 +315,16 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
               icon,
               color: effective
                   ? Colors.white
-                  : (enabled ? Colors.black54 : Colors.black26),
+                  : (enabled ? kTextSecondary : kTextHint),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: kSpaceXS),
             Text(
               label,
               style: TextStyle(
                 color: effective
                     ? Colors.white
-                    : (enabled ? Colors.black87 : Colors.black26),
-                fontWeight: FontWeight.w600,
+                    : (enabled ? kTextPrimary : kTextHint),
+                fontWeight: kWeightMedium,
               ),
             ),
           ],

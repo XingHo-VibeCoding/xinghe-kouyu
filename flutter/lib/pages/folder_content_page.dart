@@ -13,7 +13,11 @@ import 'package:provider/provider.dart';
 
 import '../models/material_item.dart';
 import '../store/material_store.dart';
+import '../utils/design_tokens.dart';
 import '../utils/sort_option.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/material_card.dart';
+import '../widgets/sort_menu.dart';
 import 'player_page.dart';
 
 class FolderContentPage extends StatefulWidget {
@@ -45,44 +49,10 @@ class _FolderContentPageState extends State<FolderContentPage> {
         title: Text('${widget.folderName} · ${items.length}'),
         actions: <Widget>[
           // 排序入口：和主列表页共用同一套排序逻辑与菜单样式
-          PopupMenuButton<SortOption>(
-            icon: const Icon(Icons.sort),
-            tooltip: '排序',
-            initialValue: _sortOption,
-            onSelected: (SortOption opt) {
+          SortMenu(
+            option: _sortOption,
+            onChanged: (SortOption opt) {
               setState(() => _sortOption = opt);
-            },
-            // 自定义菜单项（主题蓝勾 + 图标），和主列表页同款
-            itemBuilder: (BuildContext context) {
-              final Color primary = Theme.of(context).colorScheme.primary;
-              return SortOption.values.map((SortOption opt) {
-                final bool selected = opt == _sortOption;
-                return PopupMenuItem<SortOption>(
-                  value: opt,
-                  height: 48,
-                  child: Row(
-                    children: <Widget>[
-                      SizedBox(
-                        width: 28,
-                        child: selected
-                            ? Icon(Icons.check, size: 20, color: primary)
-                            : null,
-                      ),
-                      Icon(opt.icon, size: 20,
-                          color: selected ? primary : Colors.black45),
-                      const SizedBox(width: 10),
-                      Text(
-                        opt.label,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                          color: selected ? primary : const Color(0xFF333333),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList();
             },
           ),
         ],
@@ -90,9 +60,9 @@ class _FolderContentPageState extends State<FolderContentPage> {
       body: items.isEmpty
           ? _buildEmpty(context)
           : ListView.separated(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(kSpaceSM),
               itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 4),
+              separatorBuilder: (_, __) => const SizedBox(height: kSpaceXXS),
               itemBuilder: (BuildContext context, int index) {
                 final MaterialItem item = items[index];
                 return _buildItem(context, store, item);
@@ -103,46 +73,20 @@ class _FolderContentPageState extends State<FolderContentPage> {
 
   /// 单条素材卡片：点进播放页、长按出操作菜单
   Widget _buildItem(BuildContext context, MaterialStore store, MaterialItem item) {
-    final bool isVideo =
-        item.format == 'mp4' || item.format == 'mov' || item.format == 'webm';
-    return Card(
-      child: ListTile(
-        leading: _mediaBadge(context, isVideo),
-        title: Text(item.title),
-        subtitle: Text(
-          _subtitle(item),
-          style: const TextStyle(fontSize: 12, color: Colors.black54),
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        // 长按：弹出操作菜单（重命名 / 移动 / 删除）
-        onLongPress: () => _showItemMenu(context, store, item),
-        onTap: () {
-          // 点进播放页（和列表页一致）
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PlayerPage(item: item, folderName: widget.folderName),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  /// 素材类型徽章：圆角彩色底 + 白图标（和列表页保持一致）
-  Widget _mediaBadge(BuildContext context, bool isVideo) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Icon(
-        isVideo ? Icons.movie_outlined : Icons.audiotrack,
-        color: Colors.white,
-        size: 22,
-      ),
+    return MaterialCard(
+      item: item,
+      subtitle: _subtitle(item),
+      // 长按：弹出操作菜单（重命名 / 移动 / 删除）
+      onLongPress: () => _showItemMenu(context, store, item),
+      onOpen: () {
+        // 点进播放页（和列表页一致）
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PlayerPage(item: item, folderName: widget.folderName),
+          ),
+        );
+      },
     );
   }
 
@@ -157,17 +101,10 @@ class _FolderContentPageState extends State<FolderContentPage> {
 
   /// 空状态：这个文件夹还没有素材
   Widget _buildEmpty(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          const Icon(Icons.folder_open, size: 72, color: Colors.grey),
-          const SizedBox(height: 12),
-          const Text('这个文件夹还是空的', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          const Text('回列表页导入素材，或把素材移动到这里。', style: TextStyle(color: Colors.black54)),
-        ],
-      ),
+    return const EmptyState(
+      icon: Icons.folder_open,
+      title: '这个文件夹还没有素材',
+      description: '回列表页导入素材，或把素材移动到这里。',
     );
   }
 
@@ -260,7 +197,7 @@ class _FolderContentPageState extends State<FolderContentPage> {
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
         title: const Text('移动到哪个文件夹？'),
-        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(vertical: kSpaceXS),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: targets

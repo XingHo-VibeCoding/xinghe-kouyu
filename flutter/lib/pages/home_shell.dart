@@ -95,7 +95,7 @@ class _HomeShellState extends State<HomeShell> {
           height: 64,
           child: Row(
             children: <Widget>[
-              Expanded(child: _navItem(0, Icons.home_filled, '首页')),
+              Expanded(child: _navItem(0, Icons.home_outlined, '首页')),
               Expanded(child: _navItem(1, Icons.menu_book_outlined, '班级')),
               // 原「作业」栏换成播放器（素材列表），承接班级文件下载后的本地播放
               Expanded(child: _navItem(2, Icons.library_music_outlined, '播放')),
@@ -107,7 +107,7 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
-  /// 单个导航 item：选中态 = 青绿浅底胶囊 + 实心图标 + 加粗文字
+  /// 单个导航 item：选中态 = 青绿浅底胶囊 + 描边图标 + 加粗文字
   Widget _navItem(int index, IconData icon, String label) {
     final bool selected = _index == index;
     return GestureDetector(
@@ -124,16 +124,16 @@ class _HomeShellState extends State<HomeShell> {
             height: 30,
             decoration: BoxDecoration(
               color: selected ? kTealSoft : Colors.transparent,
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(kRadiusCard),
             ),
-            child: Icon(icon, size: 22, color: selected ? kTeal : kTextHint),
+            child: Icon(icon, size: kIconSM, color: selected ? kTeal : kTextHint),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: kSpaceXXS),
           AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 200),
             style: TextStyle(
               fontSize: kFontCaption,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+              fontWeight: selected ? kWeightBold : kWeightRegular,
               color: selected ? kTeal : kTextHint,
             ),
             child: Text(label),

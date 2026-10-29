@@ -14,6 +14,9 @@ import '../models/class_item.dart';
 import '../store/class_store.dart';
 import '../store/user_store.dart';
 import '../utils/design_tokens.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/error_state.dart';
+import '../widgets/skeleton_list.dart';
 import 'class_detail_page.dart';
 
 class ClassListPage extends StatefulWidget {
@@ -52,30 +55,30 @@ class _ClassListPageState extends State<ClassListPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const SizedBox(height: 12),
+            const SizedBox(height: kSpaceSM),
             // ---------- 顶部：搜索条 + 扫码 + 建班/加入 ----------
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: kSpaceMD),
               child: Row(
                 children: <Widget>[
                   Expanded(
                     child: Container(
                       height: 40,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: kSpaceSM),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF0F2F4),
-                        borderRadius: BorderRadius.circular(20),
+                        color: kBorder,
+                        borderRadius: BorderRadius.circular(kRadiusBtn),
                       ),
                       child: const Row(
                         children: <Widget>[
                           Icon(Icons.search,
-                              size: 20, color: Color(0xFF999999)),
-                          SizedBox(width: 6),
+                              size: kIconSM, color: kTextHint),
+                          SizedBox(width: kSpaceXS),
                           Expanded(
                             child: Text(
                               '输入课程名称或访问码',
                               style: TextStyle(
-                                  fontSize: 14, color: Color(0xFF999999)),
+                                  fontSize: kFontBody, color: kTextHint),
                             ),
                           ),
                         ],
@@ -85,39 +88,44 @@ class _ClassListPageState extends State<ClassListPage> {
                   // 扫码图标（占位）
                   IconButton(
                     icon: const Icon(Icons.crop_free_outlined,
-                        color: Color(0xFF666666)),
+                        color: kTextSecondary),
+                    tooltip: '扫码',
                     onPressed: () => _toast(context, '扫码功能开发中'),
                   ),
                   // 建班 / 加入 入口（保留真实逻辑）
                   IconButton(
                     icon: const Icon(Icons.add_circle_outline,
-                        color: Color(0xFF666666)),
+                        color: kTextSecondary),
                     tooltip: '建班 / 加入',
                     onPressed: () => _showEntryMenu(context),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: kSpaceXS),
             // ---------- tab：我的班级 | 公开课 ----------
             _buildTabs(),
             // ---------- 筛选 ----------
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: kSpaceMD),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: <Widget>[
                   GestureDetector(
                     onTap: () => _toast(context, '筛选功能开发中'),
-                    child: const Row(
-                      children: <Widget>[
-                        Text('筛选',
-                            style: TextStyle(
-                                fontSize: 14, color: Color(0xFF666666))),
-                        SizedBox(width: 4),
-                        Icon(Icons.filter_list,
-                            size: 18, color: Color(0xFF666666)),
-                      ],
+                    behavior: HitTestBehavior.opaque,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: kSpaceSM),
+                      child: Row(
+                        children: <Widget>[
+                          Text('筛选',
+                              style: TextStyle(
+                                  fontSize: kFontBody, color: kTextSecondary)),
+                          SizedBox(width: kSpaceXXS),
+                          Icon(Icons.filter_list,
+                              size: kIconSM, color: kTextSecondary),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -138,11 +146,11 @@ class _ClassListPageState extends State<ClassListPage> {
   /// tab 行：选中的加粗 + 青绿下划线
   Widget _buildTabs() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: kSpaceMD),
       child: Row(
         children: <Widget>[
           _tabItem('我的班级', 0),
-          const SizedBox(width: 28),
+          const SizedBox(width: kSpaceXL),
           _tabItem('公开课', 1),
         ],
       ),
@@ -154,29 +162,32 @@ class _ClassListPageState extends State<ClassListPage> {
     return GestureDetector(
       onTap: () => setState(() => _tabIndex = index),
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        children: <Widget>[
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: selected ? FontWeight.bold : FontWeight.w400,
-              color: selected
-                  ? const Color(0xFF333333)
-                  : const Color(0xFF999999),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: kSpaceXS),
+        child: Column(
+          children: <Widget>[
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: kFontTitle,
+                fontWeight: selected ? kWeightBold : kWeightRegular,
+                color: selected
+                    ? kTextPrimary
+                    : kTextHint,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          // 选中态：青绿短下划线
-          Container(
-            width: 24,
-            height: 3,
-            decoration: BoxDecoration(
-              color: selected ? kTeal : Colors.transparent,
-              borderRadius: BorderRadius.circular(2),
+            const SizedBox(height: kSpaceXS),
+            // 选中态：青绿短下划线
+            Container(
+              width: 24,
+              height: 3,
+              decoration: BoxDecoration(
+                color: selected ? kTeal : Colors.transparent,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -184,69 +195,47 @@ class _ClassListPageState extends State<ClassListPage> {
   /// 「公开课」占位（暂无此功能）
   Widget _buildPublicEmpty() {
     return const Center(
-      child: Text('公开课功能即将上线', style: TextStyle(color: Color(0xFF999999))),
+      child: Text('公开课功能即将上线', style: TextStyle(color: kTextHint)),
     );
   }
 
   /// 主体四态：加载中 / 空 / 出错 / 有数据
   Widget _buildBody(BuildContext context, ClassStore store) {
-    return switch (store.status) {
-      ClassListStatus.loading =>
-        const Center(child: CircularProgressIndicator(color: kTeal)),
-      ClassListStatus.empty => _buildEmpty(context),
-      ClassListStatus.error => _buildError(context, store),
-      ClassListStatus.data => _buildList(context, store),
-    };
+    // AnimatedSwitcher 让四态切换淡入淡出（动效·第三批 B1）；KeyedSubtree 用状态枚举做 key 触发过渡
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: KeyedSubtree(
+        key: ValueKey(store.status),
+        child: switch (store.status) {
+          ClassListStatus.loading => const SkeletonList(),
+          ClassListStatus.empty => _buildEmpty(context),
+          ClassListStatus.error => _buildError(context, store),
+          ClassListStatus.data => _buildList(context, store),
+        },
+      ),
+    );
   }
 
   /// 空状态：引导去建班或加入
   Widget _buildEmpty(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          const Icon(Icons.school_outlined, size: 64, color: Color(0xFFCCCCCC)),
-          const SizedBox(height: 12),
-          const Text('还没有班级',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          const Text('老师创建班级，师生用班级码加入（支持多老师）',
-              style: TextStyle(fontSize: 13, color: Color(0xFF999999))),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: kTeal),
-            onPressed: () => _showEntryMenu(context),
-            icon: const Icon(Icons.add),
-            label: const Text('建班 / 加入'),
-          ),
-        ],
+    return EmptyState(
+      icon: Icons.school_outlined,
+      title: '还没有班级',
+      description: '老师创建班级，师生用班级码加入（支持多老师）',
+      action: FilledButton.icon(
+        style: FilledButton.styleFrom(backgroundColor: kTeal),
+        onPressed: () => _showEntryMenu(context),
+        icon: const Icon(Icons.add),
+        label: const Text('建班 / 加入'),
       ),
     );
   }
 
   /// 出错状态：说清原因 + 重试
   Widget _buildError(BuildContext context, ClassStore store) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          const Icon(Icons.error_outline, size: 64, color: Colors.orange),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(store.errorMessage,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 13, color: Color(0xFF999999))),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: kTeal),
-            onPressed: () => store.load(context.read<UserStore>().uid),
-            icon: const Icon(Icons.refresh),
-            label: const Text('重试'),
-          ),
-        ],
-      ),
+    return ErrorState(
+      message: store.errorMessage,
+      onRetry: () => store.load(context.read<UserStore>().uid),
     );
   }
 
@@ -256,9 +245,9 @@ class _ClassListPageState extends State<ClassListPage> {
       color: kTeal,
       onRefresh: () => store.load(context.read<UserStore>().uid),
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: kSpaceMD, vertical: kSpaceXXS),
         itemCount: store.classes.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        separatorBuilder: (_, _) => const SizedBox(height: kSpaceSM),
         itemBuilder: (BuildContext context, int index) {
           final ClassItem cls = store.classes[index];
           return _classCard(cls);
@@ -277,7 +266,7 @@ class _ClassListPageState extends State<ClassListPage> {
         );
       },
       child: Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(kSpaceSM),
       decoration: BoxDecoration(
         color: kCard,
         borderRadius: BorderRadius.circular(kRadiusCard),
@@ -294,12 +283,12 @@ class _ClassListPageState extends State<ClassListPage> {
                 width: 96,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD9EEF9),
-                  borderRadius: BorderRadius.circular(8),
+                  color: kTealSoft,
+                  borderRadius: BorderRadius.circular(kRadiusXS),
                 ),
                 child: const Center(
                   child: Icon(Icons.collections,
-                      color: Color(0xFF7FB8D4), size: 30),
+                      color: kTeal, size: kIconLG),
                 ),
               ),
               Positioned(
@@ -307,23 +296,23 @@ class _ClassListPageState extends State<ClassListPage> {
                 left: 0,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      const EdgeInsets.symmetric(horizontal: kSpaceXS, vertical: kSpaceXXS),
                   decoration: const BoxDecoration(
                     color: Color(0x99000000),
                     borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(8),
-                      bottomRight: Radius.circular(8),
+                      topLeft: Radius.circular(kRadiusXS),
+                      bottomRight: Radius.circular(kRadiusXS),
                     ),
                   ),
                   child: const Text(
                     '进行中',
-                    style: TextStyle(fontSize: 10, color: Colors.white),
+                    style: TextStyle(fontSize: kFontMicro, color: Colors.white),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: kSpaceSM),
           // 右侧信息
           Expanded(
             child: Column(
@@ -334,28 +323,28 @@ class _ClassListPageState extends State<ClassListPage> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF333333),
+                    fontSize: kFontTitle,
+                    fontWeight: kWeightBold,
+                    color: kTextPrimary,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: kSpaceXXS),
                 Text(
                   cls.code,
                   style:
-                      const TextStyle(fontSize: 13, color: Color(0xFF999999)),
+                      const TextStyle(fontSize: kFontBody, color: kTextHint),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: kSpaceXXS),
                 Text(
                   '教师: ${cls.teacherName ?? '未知'}',
                   style:
-                      const TextStyle(fontSize: 13, color: Color(0xFF999999)),
+                      const TextStyle(fontSize: kFontBody, color: kTextHint),
                 ),
               ],
             ),
           ),
           // 右侧竖点菜单（占位）
-          const Icon(Icons.more_vert, size: 20, color: Color(0xFFBBBBBB)),
+          const Icon(Icons.more_vert, size: kIconSM, color: kTextHint),
         ],
         ),
       ),
