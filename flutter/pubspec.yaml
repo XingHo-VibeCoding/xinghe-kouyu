@@ -88,6 +88,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 # 构建钩子配置：让 sqlite3 包在 Windows 上不下载预编译 dll（GitHub 被墙），
 # 改用系统自带的 winsqlite3.dll（Windows 10/11 内置）。安卓/iOS 不受影响。
@@ -139,5 +140,27 @@ flutter:
   #       - asset: fonts/TrajanPro_Bold.ttf
   #         weight: 700
   #
-  # For details regarding fonts from package dependencies,
-  # see https://flutter.dev/to/font-from-package
+# For details regarding fonts from package dependencies,
+# see https://flutter.dev/to/font-from-package
+
+# ===== App 图标生成配置（flutter_launcher_icons）=====
+# 用法：改了源图后执行 `dart run flutter_launcher_icons` 一键重生成各平台图标。
+# 源图：assets/icon/app_icon.png —— 1024×1024，画面只有四个色块、不含下方文字。
+# 这两张图不参与 App 打包（assets 未在 flutter: 里声明），只给生成器当输入。
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  # 安卓 8+ 自适应图标：纯白底 + 缩小版前景
+  # （前景缩到 636px 是给系统圆形/方形遮罩留安全区，否则四个角会被切掉）
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  # 生成器默认还会再给前景套一层 16% 的 inset，和上面的留白重复；
+  # 设为 0 让图形保持 62% 占位（安卓安全区建议 60~66%），避免图标显小
+  adaptive_icon_foreground_inset: 0
+  # iOS 图标不允许透明通道，自动压平为不透明
+  remove_alpha_ios: true
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    icon_size: 256
