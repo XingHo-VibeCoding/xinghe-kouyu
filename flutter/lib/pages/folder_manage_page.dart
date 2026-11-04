@@ -18,6 +18,7 @@ import '../store/material_store.dart';
 import '../utils/design_tokens.dart';
 import '../widgets/empty_state.dart';
 import 'folder_content_page.dart';
+import 'import_flow.dart';
 
 class FolderManagePage extends StatelessWidget {
   const FolderManagePage({super.key});
@@ -31,7 +32,18 @@ class FolderManagePage extends StatelessWidget {
 
     return Scaffold(
       // AppBar 自带的返回箭头就是「返回上一页」（Navigator.pop）
-      appBar: AppBar(title: const Text('文件夹管理')),
+      appBar: AppBar(
+        title: const Text('文件夹管理'),
+        actions: <Widget>[
+          // 导入入口（对应 PWA 版文件夹页右上角的「＋ 导入素材」）：
+          // 点它会先弹窗问「导入到哪个文件夹」，再调系统文件选择器
+          TextButton.icon(
+            onPressed: () => importWithFolderPicker(context),
+            icon: const Icon(Icons.add),
+            label: const Text('导入'),
+          ),
+        ],
+      ),
       // 空文件夹时给个提示，否则显示文件夹列表
       body: folders.isEmpty
           ? _buildEmpty(context)

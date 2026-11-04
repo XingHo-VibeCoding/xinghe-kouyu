@@ -63,6 +63,9 @@ class XingheApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: '星禾口语',
+        // 关掉 Debug 模式下右上角自动画的「DEBUG」红角标
+        // （这是 Flutter 框架的开发提示，正式打包的 release 版本来就不会有）
+        debugShowCheckedModeBanner: false,
         theme: ThemeData(
           // 品牌色系（Day 23 视觉升级）：青绿主色 + 珊瑚橙强调 + 暖白底
           colorScheme: ColorScheme.fromSeed(

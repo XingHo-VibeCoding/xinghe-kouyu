@@ -15,6 +15,7 @@ import '../widgets/material_card.dart';
 import '../widgets/skeleton_list.dart';
 import '../widgets/sort_menu.dart';
 import 'folder_manage_page.dart';
+import 'import_flow.dart';
 import 'player_page.dart';
 
 class MaterialListPage extends StatefulWidget {
@@ -315,132 +316,6 @@ class _MaterialListPageState extends State<MaterialListPage> {
   }
 
   /// 【数据导入】入口：先让用户选「放进哪个文件夹」，再调文件选择器，最后写库。
-  /// 用 async 方法编排这条多步链路，每一步 await 等上一步完成再往下走。
-  Future<void> _startImport(BuildContext context) async {
-    // 不重新 read，直接通过 context 拿 store（导入后会 load 刷新，页面自动重建）
-    final MaterialStore store = context.read<MaterialStore>();
-
-    // 没有任何文件夹时，直接引导新建（否则素材没有归属）
-    if (store.folders.isEmpty) {
-      final bool created = await _createFolderInline(context, store);
-      if (!created) return; // 新建失败或取消，就停在这里
-    }
-
-    // —— 第一步：选目标文件夹（方案 B）——
-    // 用 AlertDialog 弹一个单选列表（带「取消」+「新建文件夹」）。
-    // 返回类型用 Object：既可能是选中的 Folder，也可能是「新建文件夹」哨兵。
-    final Object? target = await showDialog<Object>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('导入到哪个文件夹？'),
-          contentPadding: const EdgeInsets.symmetric(vertical: kSpaceXS),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: store.folders
-                .map(
-                  (Folder f) => ListTile(
-                    leading: Icon(
-                      Icons.folder_outlined,
-                      color: Theme.of(dialogContext).colorScheme.primary,
-                    ),
-                    title: Text(f.name),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.pop(dialogContext, f), // 点哪项就把哪个文件夹返回
-                  ),
-                )
-                .toList(),
-          ),
-          actions: <Widget>[
-            TextButton.icon(
-              // 弹窗里就地新建文件夹，省得用户取消再跑一趟
-              onPressed: () async {
-                final bool created = await _createFolderInline(dialogContext, store);
-                if (!created || !dialogContext.mounted) return;
-                // 建好了要刷新弹窗里的文件夹列表（store 已 notify，但弹窗自身需重建）
-                Navigator.pop(dialogContext, _FolderCreateSentinel());
-              },
-              icon: const Icon(Icons.create_new_folder_outlined),
-              label: const Text('新建文件夹'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext), // 取消：返回 null
-              child: const Text('取消'),
-            ),
-          ],
-        );
-      },
-    );
-    // 用户点了取消或点了对话框外（返回 null）就直接结束，不往下走
-    if (target == null) return;
-
-    // 点的是「新建文件夹」：重新弹一次选择框，让用户选中刚建好的文件夹
-    if (target is _FolderCreateSentinel) {
-      await _startImport(context);
-      return;
-    }
-
-    // 到这里 target 一定是选中的文件夹
-    final Folder chosen = target as Folder;
-
-    // —— 第二步：调文件选择器 + 复制 + 写库（这一步会真实地弹系统文件选择器）——
-    try {
-      final String? importedTitle = await store.importMaterial(chosen.id);
-      if (importedTitle == null) {
-        // 用户在选择文件那一步取消了，礼貌地告知即可，不算错误
-        _showDemoTip(context, '已取消导入');
-        return;
-      }
-      _showDemoTip(context, '已导入「$importedTitle」到「${chosen.name}」');
-    } catch (e) {
-      // 出错：把真实原因告诉用户，别吞掉
-      _showDemoTip(context, '导入失败：$e');
-    }
-  }
-
-  /// 就地新建文件夹（导入链路里复用）：弹输入框 → 调 store.addFolder → 返回是否成功。
-  /// 成功返回 true；取消或名字为空返回 false。出错时用 SnackBar 提示并返回 false。
-  Future<bool> _createFolderInline(BuildContext context, MaterialStore store) async {
-    final String? name = await _askFolderName(context);
-    if (name == null || name.trim().isEmpty) return false;
-    try {
-      await store.addFolder(name.trim());
-      return true;
-    } catch (e) {
-      _showDemoTip(context, '新建文件夹失败：$e');
-      return false;
-    }
-  }
-
-  /// 弹一个「新建文件夹」输入框，返回用户输入的文字（取消返回 null）
-  Future<String?> _askFolderName(BuildContext context) async {
-    final TextEditingController controller = TextEditingController();
-    final String? result = await showDialog<String>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        title: const Text('新建文件夹'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: '请输入文件夹名'),
-          onSubmitted: (String value) => Navigator.pop(ctx, value),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text('确定'),
-          ),
-        ],
-      ),
-    );
-    return result;
-  }
+  /// 具体编排放在 import_flow.dart（素材列表页 / 文件夹管理页 / 文件夹内容页共用一套）。
+  Future<void> _startImport(BuildContext context) => importWithFolderPicker(context);
 }
-
-/// 哨兵：用来标记「用户在文件夹选择弹窗里点了『新建文件夹』」。
-/// 选择弹窗返回这个对象时，表示不是选中的文件夹，而是要求新建后再选。
-class _FolderCreateSentinel {}

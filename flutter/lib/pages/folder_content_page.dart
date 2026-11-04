@@ -18,6 +18,7 @@ import '../utils/sort_option.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/material_card.dart';
 import '../widgets/sort_menu.dart';
+import 'import_flow.dart';
 import 'player_page.dart';
 
 class FolderContentPage extends StatefulWidget {
@@ -68,6 +69,16 @@ class _FolderContentPageState extends State<FolderContentPage> {
                 return _buildItem(context, store, item);
               },
             ),
+      // 导入入口：目标就是这个文件夹，所以不用再弹窗问，直接进系统文件选择器（支持多选）
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => importIntoFolder(
+          context,
+          folderId: widget.folderId,
+          folderName: widget.folderName,
+        ),
+        icon: const Icon(Icons.add),
+        label: const Text('导入到此文件夹'),
+      ),
     );
   }
 
@@ -104,7 +115,7 @@ class _FolderContentPageState extends State<FolderContentPage> {
     return const EmptyState(
       icon: Icons.folder_open,
       title: '这个文件夹还没有素材',
-      description: '回列表页导入素材，或把素材移动到这里。',
+      description: '点右下角「导入到此文件夹」添加，或在列表页把已有素材移动过来。',
     );
   }
 

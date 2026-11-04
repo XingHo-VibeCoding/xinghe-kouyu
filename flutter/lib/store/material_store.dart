@@ -23,6 +23,50 @@ import '../models/material_item.dart';
 /// 列表的四种状态：加载中 / 空 / 错误 / 正常有数据
 enum ListStatus { loading, empty, error, data }
 
+/// 一次「批量导入」的结果
+/// ---------------------------------------------------------------------
+/// 为什么要有这个类：用户一次勾了 10 个文件，界面不能只说「已导入」，
+/// 得说清「成了几个 / 跳过几个（非音视频）/ 哪几个失败、为什么」。
+/// imported = 成功写进库的条数；skipped = 不是音视频被忽略的条数；
+/// failures = 失败明细（文件名 + 原因），一条一个人看得懂的字符串。
+class ImportResult {
+  final int imported;
+  final int skipped;
+  final List<String> failures;
+
+  const ImportResult({
+    required this.imported,
+    required this.skipped,
+    this.failures = const <String>[],
+  });
+
+  /// 拼一句给用户看的汇总（避免每个页面各写一套文案）
+  String summary(String folderName) {
+    final StringBuffer sb = StringBuffer();
+    if (imported > 0) {
+      sb.write('已导入 $imported 个素材到「$folderName」');
+    } else {
+      sb.write('没有导入任何素材');
+    }
+    if (skipped > 0) sb.write('，$skipped 个非音视频已忽略');
+    if (failures.isNotEmpty) sb.write('，${failures.length} 个失败');
+    return sb.toString();
+  }
+}
+
+/// 文件夹重名异常：名字重复时抛它，界面层直接把 toString() 给用户看
+/// ---------------------------------------------------------------------
+/// 为什么要自定义类型而不是抛 Exception('...')：
+/// 默认的 Exception 打印出来会带「Exception: 」前缀，提示语会变丑。
+/// 这里让 toString() 直接是一句人话，界面层不用专门判断类型也能用好它。
+class DuplicateFolderNameException implements Exception {
+  final String name;
+  const DuplicateFolderNameException(this.name);
+
+  @override
+  String toString() => '「$name」这个文件夹已经存在了';
+}
+
 /// 一个文件夹
 class Folder {
   final int id;
@@ -78,15 +122,26 @@ class MaterialStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 新建文件夹，成功后刷新列表
+  /// 新建文件夹，成功后刷新列表。
+  /// 名字（去掉首尾空格后）已存在则抛 DuplicateFolderNameException，不建重复的。
+  /// 为什么在这里拦：新建入口有三处（列表页导入弹窗、文件夹管理页、将来的其他入口），
+  /// 放数据层拦一次，三处都拦得住，不会有人漏写。
   Future<void> addFolder(String name) async {
-    await DatabaseHelper.instance.insertFolder(name);
+    final String trimmed = name.trim();
+    if (_folders.any((Folder f) => f.name == trimmed)) {
+      throw DuplicateFolderNameException(trimmed);
+    }
+    await DatabaseHelper.instance.insertFolder(trimmed);
     await load();
   }
 
-  /// 重命名文件夹
+  /// 重命名文件夹（同样拦重名，但要排除自己——改成原名不算重复）
   Future<void> renameFolder(int id, String newName) async {
-    await DatabaseHelper.instance.renameFolder(id, newName);
+    final String trimmed = newName.trim();
+    if (_folders.any((Folder f) => f.id != id && f.name == trimmed)) {
+      throw DuplicateFolderNameException(trimmed);
+    }
+    await DatabaseHelper.instance.renameFolder(id, trimmed);
     await load();
   }
 
@@ -112,58 +167,77 @@ class MaterialStore extends ChangeNotifier {
     await load();
   }
 
-  /// 【数据导入】从系统文件选择器挑一个音视频文件，导入到指定文件夹。
+  /// App 认可的素材扩展名（和文件选择器的过滤条件保持一致）
+  static const Set<String> kMediaExtensions = <String>{
+    'mp3', 'm4a', 'wav', 'aac', 'mp4', 'mov', 'webm', 'm4v',
+  };
+
+  /// 【数据导入】从系统文件选择器挑选**一个或多个**音视频文件，全部导入到指定文件夹。
   /// 完整链路分三步（对应「选文件 → 复制进仓库 → 写库」）：
-  ///   1. file_picker 调起系统文件选择器，拿到用户选的文件的原始路径；
-  ///   2. 把文件复制一份到 App 私有目录（这样微信/下载目录的原文件被清理后，
-  ///      我们这儿的拷贝还在，素材不会丢）；
-  ///   3. 把「标题、所属文件夹、格式、私有目录里的新路径」写进 SQLite。
-  /// 返回 null 表示用户取消；返回标题字符串表示成功。出错时抛出异常，由界面层接住提示。
-  Future<String?> importMaterial(int folderId) async {
-    // —— 第一步：调起文件选择器（限定音视频格式，单文件）——
-    // 注：file_picker 13.x 起 API 变为静态方法 FilePicker.pickFiles，返回 List<PlatformFile>；
-    //     用户取消时返回空列表（不再有 FilePickerResult 类型）。
+  ///   1. file_picker 调起系统文件选择器（13.x 的 pickFiles 本身允许多选）；
+  ///   2. 逐个把文件复制一份到 App 私有目录（微信/下载目录的原文件被清理后，拷贝还在）；
+  ///   3. 逐个把元数据写进 SQLite，**整批只刷新一次列表**（10 个文件刷新 10 次会明显卡顿）。
+  /// 返回 null = 用户取消（一个文件都没选）；否则返回 ImportResult 汇总。
+  /// 单个文件失败不会中断整批——把失败原因记进 failures，其余照常导入（沿用 PWA 版行为）。
+  Future<ImportResult?> importMaterials(int folderId) async {
+    // —— 第一步：调起文件选择器（限定音视频格式；13.x 起为静态方法、天然多选）——
     final List<PlatformFile> files = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: <String>['mp3', 'm4a', 'wav', 'aac', 'mp4', 'mov', 'webm', 'm4v'],
+      allowedExtensions: kMediaExtensions.toList(),
     );
-    // 用户没选（空列表）就返回 null，界面层据此不做任何事
+    // 用户没选（空列表）就返回 null，界面层据此显示「已取消导入」
     if (files.isEmpty) return null;
 
-    // 原始文件路径（安卓上是从系统文件选择器拿到的 content:// 或 file:// 路径）
-    final PlatformFile picked = files.first;
-    final String? srcPath = picked.path;
-    if (srcPath == null) {
-      throw Exception('无法读取所选文件路径');
-    }
-
-    // 从文件名里拆出「标题」和「格式扩展名」（如 lesson1.mp3 → 标题 lesson1、格式 mp3）
-    final String fileName = picked.name;
-    final String ext = p.extension(fileName).replaceFirst('.', '').toLowerCase();
-    final String title = p.basenameWithoutExtension(fileName);
-
-    // —— 第二步：复制到 App 私有目录 ——
-    // 先确保 App 的「素材仓库」目录存在（不存在就建）
+    // —— 第二步预备：素材仓库目录只确保一次（不再每个文件判断一遍）——
     final Directory appDir = await getApplicationDocumentsDirectory();
     final Directory materialDir = Directory(p.join(appDir.path, 'materials'));
     if (!await materialDir.exists()) {
       await materialDir.create(recursive: true);
     }
-    // 目标文件名带上时间戳，避免同名文件互相覆盖
-    final String destPath = p.join(
-      materialDir.path,
-      '${DateTime.now().millisecondsSinceEpoch}_$fileName',
-    );
-    await File(srcPath).copy(destPath);
+    // 同一批共用一个毫秒基准，再拼上下标：避免同一毫秒内多个文件互相覆盖
+    final int stamp = DateTime.now().millisecondsSinceEpoch;
 
-    // —— 第三步：写库 + 刷新列表 ——
-    await addMaterial(
-      title: title,
-      folderId: folderId,
-      format: ext.isEmpty ? 'unknown' : ext,
-      filePath: destPath,
-    );
-    return title;
+    int imported = 0; // 成功条数
+    int skipped = 0; // 非音视频，静默跳过
+    final List<String> failures = <String>[]; // 失败明细
+
+    // —— 逐个文件：筛格式 → 复制 → 写库 ——
+    for (int i = 0; i < files.length; i++) {
+      final PlatformFile picked = files[i];
+      final String fileName = picked.name;
+
+      // 有些平台的文件选择器过滤不严格（如安卓某些文件管理器），这里再筛一道
+      final String ext = p.extension(fileName).replaceFirst('.', '').toLowerCase();
+      if (!kMediaExtensions.contains(ext)) {
+        skipped++;
+        continue;
+      }
+
+      final String? srcPath = picked.path;
+      if (srcPath == null) {
+        failures.add('$fileName（读不到文件路径）');
+        continue;
+      }
+
+      try {
+        final String destPath = p.join(materialDir.path, '${stamp}_${i}_$fileName');
+        await File(srcPath).copy(destPath);
+        // 直接调存储层写入，不走 addMaterial：addMaterial 每次都 load()，批量时太浪费
+        await DatabaseHelper.instance.insertMaterial(
+          title: p.basenameWithoutExtension(fileName),
+          folderId: folderId,
+          format: ext,
+          filePath: destPath,
+        );
+        imported++;
+      } catch (e) {
+        // 单个失败不影响其他文件
+        failures.add('$fileName（$e）');
+      }
+    }
+
+    await load(); // 整批导入完成后统一刷新一次
+    return ImportResult(imported: imported, skipped: skipped, failures: failures);
   }
 
   /// 把素材移动到另一个文件夹
