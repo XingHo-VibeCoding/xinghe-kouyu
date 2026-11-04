@@ -17,6 +17,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/checkin_session.dart';
+import '../models/checkin_status.dart';
 import '../models/class_file.dart';
 import '../models/class_item.dart';
 import '../models/class_member.dart';
@@ -99,6 +101,17 @@ class ApiClient {
     'message': message,
     'data': {},
   };
+
+  /// 安全解析：把「JSON → 模型」包进 try-catch。
+  /// 后端字段缺失/类型不对时返回失败结果，而不是让解析异常穿透到页面
+  /// 把界面冻结住（Day 25 签到 BUG 教训：缺 session_id 导致发起/轮询全卡死）。
+  ApiResult<T> _safeParse<T>(T Function() parse, String failMessage) {
+    try {
+      return ApiResult.success(parse());
+    } catch (_) {
+      return ApiResult.fail(failMessage);
+    }
+  }
 
   /// 解析响应：先看 HTTP 是否成功，再解析 JSON，抽成三件套
   Map<String, dynamic> _decode(http.Response resp) {
@@ -273,5 +286,117 @@ class ApiClient {
       );
     }
     return ApiResult.fail(r['message']?.toString() ?? '上传失败');
+  }
+
+  // ------------------------------------------------------------------
+  // 签到（Day 25）
+  // ------------------------------------------------------------------
+
+  /// 老师发起签到：返回新场次（含 6 位签到码 + 学生数）
+  Future<ApiResult<CheckinSession>> createCheckin(
+    String uid,
+    String classId,
+  ) async {
+    final Map<String, dynamic> r = await _postJson('/checkins', {
+      'action': 'create',
+      'uid': uid,
+      'class_id': classId,
+    });
+    if (r['code'] == 0) {
+      return _safeParse<CheckinSession>(
+        () => CheckinSession.fromJson(r['data'] as Map<String, dynamic>),
+        '发起成功但返回数据异常，请返回重进查看',
+      );
+    }
+    return ApiResult.fail(r['message']?.toString() ?? '发起签到失败');
+  }
+
+  /// 学生签到：按 6 位签到码签到
+  Future<ApiResult<void>> checkin(String uid, String code) async {
+    final Map<String, dynamic> r = await _postJson('/checkins', {
+      'action': 'checkin',
+      'uid': uid,
+      'code': code,
+    });
+    if (r['code'] == 0) return ApiResult.success(null);
+    return ApiResult.fail(r['message']?.toString() ?? '签到失败');
+  }
+
+  /// 查某场签到实时状态（老师监控轮询 / 学生查自己）
+  Future<ApiResult<CheckinSession>> checkinSession(String sessionId) async {
+    final Map<String, dynamic> r = await _getJson('/checkins', {
+      'session_id': sessionId,
+    });
+    if (r['code'] == 0) {
+      return _safeParse<CheckinSession>(
+        () => CheckinSession.fromJson(r['data'] as Map<String, dynamic>),
+        '签到数据解析失败',
+      );
+    }
+    return ApiResult.fail(r['message']?.toString() ?? '查询失败');
+  }
+
+  /// 查该班进行中的签到；无进行中返回 null
+  Future<ApiResult<CheckinSession?>> activeCheckin(String classId) async {
+    final Map<String, dynamic> r = await _getJson('/checkins', {
+      'class_id': classId,
+    });
+    if (r['code'] == 0) {
+      final dynamic data = r['data'];
+      if (data == null) return ApiResult.success(null);
+      return _safeParse<CheckinSession?>(
+        () => CheckinSession.fromJson(data as Map<String, dynamic>),
+        '签到数据解析失败',
+      );
+    }
+    return ApiResult.fail(r['message']?.toString() ?? '查询失败');
+  }
+
+  /// 老师终止签到
+  Future<ApiResult<void>> closeCheckin(String uid, String sessionId) async {
+    final Map<String, dynamic> r = await _postJson('/checkins', {
+      'action': 'close',
+      'uid': uid,
+      'session_id': sessionId,
+    });
+    if (r['code'] == 0) return ApiResult.success(null);
+    return ApiResult.fail(r['message']?.toString() ?? '终止失败');
+  }
+
+  /// 老师手动调整单条记录状态（缺勤/迟到/请假/已到）
+  Future<ApiResult<void>> updateCheckinRecord({
+    required String uid,
+    required String sessionId,
+    required String studentId,
+    required CheckinStatus status,
+  }) async {
+    final Map<String, dynamic> r = await _postJson('/checkins', {
+      'action': 'update',
+      'uid': uid,
+      'session_id': sessionId,
+      'student_id': studentId,
+      'status': status.wire,
+    });
+    if (r['code'] == 0) return ApiResult.success(null);
+    return ApiResult.fail(r['message']?.toString() ?? '更新失败');
+  }
+
+  /// 查该班签到历史（场次列表 + 每场汇总 + 明细）
+  Future<ApiResult<List<CheckinSession>>> checkinHistory(String classId) async {
+    final Map<String, dynamic> r = await _getJson('/checkins', {
+      'class_id': classId,
+      'history': '1',
+    });
+    if (r['code'] == 0) {
+      final List<dynamic> list = (r['data'] as List<dynamic>? ?? const []);
+      return _safeParse<List<CheckinSession>>(
+        () => list
+            .map((dynamic e) =>
+                CheckinSession.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        '签到数据解析失败',
+      );
+    }
+    return ApiResult.fail(r['message']?.toString() ?? '查询失败');
   }
 }

@@ -1,7 +1,7 @@
 # 星禾口语 · 后端接口契约（api-contract）
 
-> 版本：v0.3（Day 23，班级文件上传下载 + 多老师模型落地）｜ 状态：班级管理核心接口均已落地，仅文件「下载」走前端直连（见 3.4 说明）
-> 配套：`backend/functions/`（云函数代码）｜ 上游：PRD.md 3.6、TECH_DESIGN.md 第 6 节
+> 版本：v0.4（Day 25，签到功能：发起 / 输码签到 / 实时监控 / 手动调整 / 历史汇总）｜ 状态：班级管理 + 签到接口均已落地
+> 配套：`backend/functions/`（云函数代码）｜ 上游：PRD.md 3.6、3.9、TECH_DESIGN.md 第 6 节
 
 本文档是「前端页面」和「后端云函数」之间的约定。两边各自开发时，都以这份文档为准，
 避免「前端以为回这个、后端实际回那个」的对不上。
@@ -217,7 +217,94 @@
 
 ---
 
-## 4. 已知边界与待办
+## 4. 签到接口（Day 25 落地）
+
+> 签到功能依赖两张表：`checkin_sessions`（场次）+ `checkin_records`（学生记录）。字段见 PRD 3.9。
+> 身份约定：老师操作（发布/终止/改状态）须带本人 `uid`，云函数内校验 `users.role=teacher` 且是该班老师；
+> 学生签到只带 `uid` + 签到码，云函数按码定位场次并校验该生在本班。
+
+| 接口 | 方法 | 用途 | 状态 |
+|---|---|---|---|
+| `/api/checkins` | POST | `action=create` 老师发布签到（生成 6 位码 + 全班缺席记录） | 已落地 |
+| `/api/checkins` | POST | `action=checkin` 学生输码签到（10 分钟内算已到） | 已落地 |
+| `/api/checkins` | POST | `action=close` 老师手动终止签到 | 已落地 |
+| `/api/checkins` | POST | `action=update` 老师改某学生状态（缺勤/迟到/请假/已到） | 已落地 |
+| `/api/checkins` | GET | `?session_id=` 某场次实时状态（含学生明细 + 四态汇总） | 已落地 |
+| `/api/checkins` | GET | `?class_id=` 该班进行中签到；`?class_id=&history=1` 该班历史场次 | 已落地 |
+
+### 4.1 `POST /api/checkins`（action=create）—— 老师发布签到
+
+**请求**：
+
+```json
+{ "action": "create", "uid": "<老师uid>", "class_id": "<班级id>" }
+```
+
+**响应**：`data` 为场次对象，含 `code`（6 位纯数字签到码）、`status:"ongoing"`、`created_at`、`student_count`、`records`（全班学生的 `absent` 记录）。
+
+**验收判定**：`code === 0`，`data.code` 是 6 位数字，`records.length === 全班学生数`。
+
+### 4.2 `POST /api/checkins`（action=checkin）—— 学生输码签到
+
+**请求**：
+
+```json
+{ "action": "checkin", "uid": "<学生uid>", "code": "123456" }
+```
+
+**响应**：`code=0` 时 `data` 为该生的签到记录（`status:"present"` + `checked_at`）。
+
+**失败**：`4004` 签到码不存在、`4005` 签到已结束（超 10 分钟或已手动终止）、`4006` 非本班学生、`4007` 已签到过。
+
+**验收判定**：输对码且 10 分钟内 → `present`；输错码 → `code=4004`；10 分钟后 → `code=4005`。
+
+### 4.3 `GET /api/checkins` —— 实时状态 / 历史场次
+
+**请求**：
+- 实时状态：`/api/checkins?session_id=<场次id>`
+- 进行中：`/api/checkins?class_id=<班级id>`（无进行中时 `data=null`）
+- 历史：`/api/checkins?class_id=<班级id>&history=1`
+
+**响应**（session_id）：`data` 为场次对象，含 `summary`（`present/late/leave/absent` 四态计数）+ `records`（每个学生 `student_id/nickname/status/checked_at`）。
+
+**验收判定**：`code === 0`，`data.summary` 四项之和 === `records.length`。
+
+### 4.4 `POST /api/checkins`（action=close）—— 老师手动终止
+
+**请求**：
+
+```json
+{ "action": "close", "uid": "<老师uid>", "session_id": "<场次id>" }
+```
+
+**响应**：`code=0` 时 `data.status === "closed"`。
+
+### 4.5 `POST /api/checkins`（action=update）—— 老师改某学生状态
+
+**请求**：
+
+```json
+{ "action": "update", "uid": "<老师uid>", "session_id": "<场次id>", "student_id": "<学生uid>", "status": "late" }
+```
+
+`status` 取值：`absent`（缺勤）/ `late`（迟到）/ `leave`（请假）/ `present`（已到）。
+
+**失败**：`4008` 未知状态、`4006` 非本班学生。
+
+**验收判定**：改后 `GET ?session_id=` 该生 `status` 变成目标值。
+
+### 4.6 签到状态色约定（前端展示用）
+
+| 状态 | wire 值 | 前端色 | 含义 |
+|---|---|---|---|
+| 缺勤 | `absent` | `kError`（红 #E53935） | 未签到 |
+| 迟到 | `late` | `kCoral`（珊瑚橙 #FF7A59） | 老师手动标注 |
+| 请假 | `leave` | `kCheckinLeave`（浅橙 #FFB74D） | 老师手动标注 |
+| 已到 | `present` | `kCheckinPresent`（绿 #6FCF3F） | 已签到 |
+
+---
+
+## 5. 已知边界与待办
 
 - **跨域 CORS**：前端调后端时的跨域配置按计划完成（附录 M「HTTP 访问服务 → 跨域 CORS 配置」）。
 - **认证**：MVP 用 CloudBase 匿名登录（领临时通行证）；真用户登录（手机号/微信）后置，届时只改「发证柜台」（`getToken()` 调哪个登录接口），查表逻辑、表结构、前端调用方式不变。

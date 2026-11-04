@@ -1,0 +1,7 @@
+{
+  "name": "checkins-api",
+  "version": "1.0.0",
+  "description": "/api/checkins - 签到接口（Day 25：发布/签到/终止/改状态/实时/历史，HTTP API 网关版，无需第三方依赖）",
+  "main": "index.js",
+  "dependencies": {}
+}

@@ -52,7 +52,6 @@ class ClassDetailPage extends StatelessWidget {
                       _GridItem(Icons.chat_bubble_outline, '讨论', Color(0xFF5B8DEF)),
                       _GridItem(Icons.fact_check_outlined, '问卷', Color(0xFF5B8DEF)),
                       _GridItem(Icons.hub_outlined, '互动', Color(0xFF3FC8C0)),
-                      _GridItem(Icons.how_to_reg_outlined, '点名记录', Color(0xFF6A7FDB)),
                       _GridItem(Icons.diversity_3_outlined, '分组学习', Color(0xFF3FB8A0)),
                       _GridItem(Icons.receipt_long_outlined, '课堂报告', Color(0xFF4FC8C8)),
                       _GridItem(Icons.rule_outlined, '练习本', Color(0xFF35C0A8)),

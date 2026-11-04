@@ -11,10 +11,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'checkin_launch_page.dart';
+import '../models/checkin_status.dart';
 import '../models/class_item.dart';
+import '../net/api_client.dart';
 import '../store/class_store.dart';
 import '../store/user_store.dart';
 import '../utils/design_tokens.dart';
+import '../widgets/gradient_button.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -24,9 +28,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const Color green = Color(0xFF6FCF3F);
-  static const Color greenDark = Color(0xFF4CBB3F);
-
   /// 按当前时段返回问候语
   String _greeting() {
     final int hour = DateTime.now().hour;
@@ -78,20 +79,20 @@ class _HomePageState extends State<HomePage> {
               child: Row(
                 children: <Widget>[
                   Expanded(
-                    child: _gradientButton(
-                      icon: Icons.qr_code_scanner,
-                      label: '扫码',
-                      start: kTeal,
-                      end: kTealDark,
+                    child: GradientButton(
+                      icon: Icons.event_available_outlined,
+                      label: '发布签到',
+                      onTap: _launchCheckin,
                     ),
                   ),
                   const SizedBox(width: kSpaceSM),
                   Expanded(
-                    child: _gradientButton(
+                    child: GradientButton(
                       icon: Icons.where_to_vote_outlined,
                       label: '签到',
-                      start: green,
-                      end: greenDark,
+                      startColor: kCheckinPresent,
+                      endColor: kCheckinPresentDark,
+                      onTap: _showCheckinDialog,
                     ),
                   ),
                 ],
@@ -146,50 +147,137 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// 渐变大按钮（扫码 / 签到）：点击逻辑暂不接，先占位
-  Widget _gradientButton({
-    required IconData icon,
-    required String label,
-    required Color start,
-    required Color end,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(kRadiusSM),
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$label 功能开发中')),
+  /// 老师发布签到：先定班级（多班级弹选班），再进发起页；学生提示仅老师可用
+  Future<void> _launchCheckin() async {
+    final UserStore user = context.read<UserStore>();
+    final ClassStore classStore = context.read<ClassStore>();
+    if (user.role != UserRole.teacher) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('仅老师可以发布签到')),
+      );
+      return;
+    }
+    final List<ClassItem> classes = classStore.classes;
+    if (classes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('还没有班级，先去「班级」建班或加入')),
+      );
+      return;
+    }
+    ClassItem target;
+    if (classes.length == 1) {
+      target = classes.first;
+    } else {
+      final ClassItem? picked = await showModalBottomSheet<ClassItem>(
+        context: context,
+        builder: (BuildContext context) {
+          return SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: <Widget>[
+                const Padding(
+                  padding: EdgeInsets.all(kSpaceMD),
+                  child: Text(
+                    '选择要发布签到的班级',
+                    style: TextStyle(
+                      fontSize: kFontTitle,
+                      fontWeight: kWeightBold,
+                      color: kTextPrimary,
+                    ),
+                  ),
+                ),
+                for (final ClassItem c in classes)
+                  ListTile(
+                    leading: const Icon(Icons.groups_outlined, color: kTeal),
+                    title: Text(
+                      c.name,
+                      style: const TextStyle(color: kTextPrimary),
+                    ),
+                    subtitle: Text(
+                      '班级码: ${c.code}',
+                      style: const TextStyle(color: kTextHint),
+                    ),
+                    onTap: () => Navigator.pop(context, c),
+                  ),
+              ],
+            ),
           );
         },
-        child: Container(
-          height: 64,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: <Color>[start, end],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(kRadiusSM),
-            boxShadow: kShadowSm,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Icon(icon, color: Colors.white, size: kIconMD),
-              const SizedBox(width: kSpaceXS),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: kFontLarge,
-                  fontWeight: kWeightBold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
+      );
+      if (picked == null) return;
+      target = picked;
+    }
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CheckinLaunchPage(
+          classId: target.id,
+          className: target.name,
         ),
       ),
+    );
+  }
+
+  /// 学生输码签到：弹输入框 → 调后端签到
+  Future<void> _showCheckinDialog() async {
+    final UserStore user = context.read<UserStore>();
+    final ApiClient api = context.read<ApiClient>();
+    final TextEditingController controller = TextEditingController();
+    final FocusNode focusNode = FocusNode();
+    String? code;
+    try {
+      code = await showDialog<String>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('签到'),
+            content: TextField(
+              controller: controller,
+              focusNode: focusNode,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              style: const TextStyle(fontSize: kFontTitle, letterSpacing: 4),
+              decoration: const InputDecoration(
+                hintText: '请输入 6 位签到码',
+                counterText: '',
+                floatingLabelBehavior: FloatingLabelBehavior.never,
+              ),
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                child: const Text('取消'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context, controller.text);
+                },
+                child: const Text('签到'),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      focusNode.dispose();
+      controller.dispose();
+    }
+    if (code == null) return;
+    final String trimmed = code.trim();
+    if (trimmed.length != 6 || int.tryParse(trimmed) == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请输入 6 位数字签到码')),
+      );
+      return;
+    }
+    final ApiResult<void> result = await api.checkin(user.uid, trimmed);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(result.ok ? '签到成功' : result.message)),
     );
   }
 
